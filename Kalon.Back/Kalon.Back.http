@@ -1,0 +1,6 @@
+@Kalon.Back_HostAddress = http://localhost:5139
+
+GET {{Kalon.Back_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
