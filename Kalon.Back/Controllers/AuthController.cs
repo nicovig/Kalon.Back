@@ -32,6 +32,7 @@ public class AuthController: ControllerBase
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
     {
+        Console.WriteLine("Update githubactions");
         var email = request.Email.Trim().ToLowerInvariant();
         var user = await _dbContext.Users.SingleOrDefaultAsync(u => u.Email == email, cancellationToken);
 
