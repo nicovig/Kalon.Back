@@ -4,3 +4,4 @@ Kalon.Back/bin
 Kalon.Back.Tests/bin
 Kalon.Back.Tests/obj
 .env
+/Kalon.Back/appsettings.Development.json
