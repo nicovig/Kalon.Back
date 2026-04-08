@@ -2,9 +2,9 @@ using System;
 using System.Net;
 using System.Net.Http;
 using System.Text;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Kalon.Back.Dtos;
 using Kalon.Back.Services;
 using Microsoft.Extensions.Options;
 using Xunit;
@@ -73,8 +73,8 @@ public class MeranClientTests
         Assert.Equal("Bearer", handler.LastRequest.Headers.Authorization!.Scheme);
         Assert.Equal("token123", handler.LastRequest.Headers.Authorization!.Parameter);
 
-        Assert.True(result.GetProperty("isActive").GetBoolean());
-        Assert.Equal("basic", result.GetProperty("plan").GetString());
+        Assert.True(result.IsActive);
+        Assert.Equal("basic", result.Plan);
     }
 
     [Fact]
