@@ -1,4 +1,4 @@
-namespace Kalon.Back.Dtos;
+namespace Kalon.Back.Dtos.Auth;
 
 public class LoginResponse
 {

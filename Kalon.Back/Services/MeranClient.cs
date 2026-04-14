@@ -1,4 +1,4 @@
-using Kalon.Back.Dtos;
+using Kalon.Back.Dtos.Auth;
 using Microsoft.Extensions.Options;
 using System.Text.Json;
 

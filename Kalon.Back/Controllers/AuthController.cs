@@ -1,5 +1,5 @@
 using Kalon.Back.Data;
-using Kalon.Back.Dtos;
+using Kalon.Back.Dtos.Auth;
 using Kalon.Back.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;

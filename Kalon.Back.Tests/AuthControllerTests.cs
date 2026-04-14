@@ -2,7 +2,7 @@ using System.Net;
 using System.Text;
 using Kalon.Back.Controllers;
 using Kalon.Back.Data;
-using Kalon.Back.Dtos;
+using Kalon.Back.Dtos.Auth;
 using Kalon.Back.Models;
 using Kalon.Back.Services;
 using Microsoft.AspNetCore.Mvc;

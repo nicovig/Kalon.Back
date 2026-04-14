@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace Kalon.Back.Dtos;
+namespace Kalon.Back.Dtos.Auth;
 
 public class LoginRequest
 {
