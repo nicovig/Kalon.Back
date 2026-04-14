@@ -1,5 +1,5 @@
 using Kalon.Back.Data;
-using Kalon.Back.Dtos.Contact;
+using Kalon.Back.DTOs;
 using Kalon.Back.Models;
 using Kalon.Back.Services.OrganizationAccess;
 using Microsoft.AspNetCore.Mvc;
@@ -13,7 +13,10 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
     : ControllerBase
 {
     [HttpPost]
-    public async Task<IActionResult> Create([FromQuery] Guid userId, [FromBody] ContactUpsertRequest request,
+    [ProducesResponseType(typeof(Contact), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Create([FromQuery] Guid userId, [FromBody] Contact request,
         CancellationToken cancellationToken)
     {
         var access = await userOrganizationAccess.ResolveAsync(userId, cancellationToken);
@@ -25,7 +28,7 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
 
         var validationError = ValidateRequest(request);
         if (validationError is not null)
-            return BadRequest(new { message = validationError });
+            return BadRequest(new ApiMessageResponse { Message = validationError });
 
         var contact = new Contact
         {
@@ -38,10 +41,13 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
         dbContext.Contacts.Add(contact);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return CreatedAtAction(nameof(GetById), new { userId, id = contact.Id }, ToDetailsResponse(contact));
+        return CreatedAtAction(nameof(GetById), new { userId, id = contact.Id }, contact);
     }
 
     [HttpGet]
+    [ProducesResponseType(typeof(List<Contact>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetAll([FromQuery] Guid userId, CancellationToken cancellationToken)
     {
         var access = await userOrganizationAccess.ResolveAsync(userId, cancellationToken);
@@ -52,27 +58,20 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
         var organizationId = resolved.OrganizationId;
 
         var contacts = await dbContext.Contacts
+            .Include(c => c.Address)
+            .Include(c => c.Enterprise)
             .AsNoTracking()
             .Where(c => c.OrganizationId == organizationId)
             .OrderByDescending(c => c.CreatedAt)
-            .Select(c => new ContactListItemResponse
-            {
-                Id = c.Id,
-                Kind = c.Kind,
-                Status = c.Status,
-                Firstname = c.Firstname,
-                Lastname = c.Lastname,
-                Email = c.Email,
-                Phone = c.Phone,
-                Department = c.Department,
-                CreatedAt = c.CreatedAt
-            })
             .ToListAsync(cancellationToken);
 
         return Ok(contacts);
     }
 
     [HttpGet("{id:guid}")]
+    [ProducesResponseType(typeof(Contact), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById([FromQuery] Guid userId, [FromRoute] Guid id,
         CancellationToken cancellationToken)
     {
@@ -84,37 +83,24 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
         var organizationId = resolved.OrganizationId;
 
         var contact = await dbContext.Contacts
+            .Include(c => c.Address)
+            .Include(c => c.Enterprise)
             .AsNoTracking()
             .Where(c => c.OrganizationId == organizationId && c.Id == id)
-            .Select(c => new ContactDetailsResponse
-            {
-                Id = c.Id,
-                Kind = c.Kind,
-                Status = c.Status,
-                Firstname = c.Firstname,
-                Lastname = c.Lastname,
-                Email = c.Email,
-                Phone = c.Phone,
-                Department = c.Department,
-                CreatedAt = c.CreatedAt,
-                JobTitle = c.JobTitle,
-                BirthDate = c.BirthDate,
-                Gender = c.Gender,
-                Notes = c.Notes,
-                PreferredFrequencySendingReceipt = c.PreferredFrequencySendingReceipt,
-                UpdatedAt = c.UpdatedAt
-            })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (contact is null)
-            return NotFound(new { message = "Contact not found." });
+            return NotFound(new ApiMessageResponse { Message = "Contact not found." });
 
         return Ok(contact);
     }
 
     [HttpPut("{id:guid}")]
+    [ProducesResponseType(typeof(Contact), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Update([FromQuery] Guid userId, [FromRoute] Guid id,
-        [FromBody] ContactUpsertRequest request, CancellationToken cancellationToken)
+        [FromBody] Contact request, CancellationToken cancellationToken)
     {
         var access = await userOrganizationAccess.ResolveAsync(userId, cancellationToken);
         var resolved = access.ToActionResult();
@@ -125,36 +111,35 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
 
         var validationError = ValidateRequest(request);
         if (validationError is not null)
-            return BadRequest(new { message = validationError });
+            return BadRequest(new ApiMessageResponse { Message = validationError });
 
         var contact = await dbContext.Contacts
+            .Include(c => c.Address)
+            .Include(c => c.Enterprise)
             .FirstOrDefaultAsync(c => c.OrganizationId == organizationId && c.Id == id, cancellationToken);
 
         if (contact is null)
-            return NotFound(new { message = "Contact not found." });
+            return NotFound(new ApiMessageResponse { Message = "Contact not found." });
 
         ApplyRequest(contact, request);
         contact.UpdatedAt = DateTime.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return Ok(ToDetailsResponse(contact));
+        return Ok(contact);
     }
 
-    private static string? ValidateRequest(ContactUpsertRequest request)
+    private static string? ValidateRequest(Contact request)
     {
         if (string.IsNullOrWhiteSpace(request.Firstname) || string.IsNullOrWhiteSpace(request.Lastname))
             return "Firstname and lastname are required.";
         if (!ContactKinds.IsValid(request.Kind))
             return "Invalid contact kind.";
-        if (!ContactStatuses.IsValid(request.Status))
-            return "Invalid contact status.";
         return null;
     }
 
-    private static void ApplyRequest(Contact contact, ContactUpsertRequest request)
+    private static void ApplyRequest(Contact contact, Contact request)
     {
         contact.Kind = request.Kind.Trim();
-        contact.Status = request.Status.Trim();
         contact.Firstname = request.Firstname.Trim();
         contact.Lastname = request.Lastname.Trim();
         contact.Email = request.Email?.Trim();
@@ -165,24 +150,7 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
         contact.Notes = request.Notes?.Trim();
         contact.Department = request.Department?.Trim();
         contact.PreferredFrequencySendingReceipt = request.PreferredFrequencySendingReceipt?.Trim();
+        contact.Address = request.Address;
+        contact.Enterprise = request.Enterprise;
     }
-
-    private static ContactDetailsResponse ToDetailsResponse(Contact c) => new()
-    {
-        Id = c.Id,
-        Kind = c.Kind,
-        Status = c.Status,
-        Firstname = c.Firstname,
-        Lastname = c.Lastname,
-        Email = c.Email,
-        Phone = c.Phone,
-        Department = c.Department,
-        CreatedAt = c.CreatedAt,
-        JobTitle = c.JobTitle,
-        BirthDate = c.BirthDate,
-        Gender = c.Gender,
-        Notes = c.Notes,
-        PreferredFrequencySendingReceipt = c.PreferredFrequencySendingReceipt,
-        UpdatedAt = c.UpdatedAt
-    };
 }

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Kalon.Back.DTOs;
 
 namespace Kalon.Back.Services.OrganizationAccess;
 
@@ -11,9 +12,9 @@ public static class OrganizationAccessMapper
         return outcome switch
         {
             OrganizationAccessOutcome.InvalidUserId => new OrganizationAccessActionResult(false, default,
-                new BadRequestObjectResult(new { message = "userId is required." })),
+                new BadRequestObjectResult(new ApiMessageResponse { Message = "userId is required." })),
             OrganizationAccessOutcome.OrganizationNotFoundForUser => new OrganizationAccessActionResult(false, default,
-                new NotFoundObjectResult(new { message = "Organization not found for user." })),
+                new NotFoundObjectResult(new ApiMessageResponse { Message = "Organization not found for user." })),
             OrganizationAccessOutcome.Ok(var id) => new OrganizationAccessActionResult(true, id, null),
             _ => throw new InvalidOperationException()
         };

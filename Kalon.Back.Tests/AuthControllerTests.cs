@@ -2,7 +2,7 @@ using System.Net;
 using System.Text;
 using Kalon.Back.Controllers;
 using Kalon.Back.Data;
-using Kalon.Back.Dtos.Auth;
+using Kalon.Back.DTOs;
 using Kalon.Back.Models;
 using Kalon.Back.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -70,13 +70,31 @@ public class AuthControllerTests
             .Build();
     }
 
+    private static Organization CreateOrganization(Guid id, Guid userId, User user)
+    {
+        return new Organization
+        {
+            Id = id,
+            Name = "Test Organization",
+            Email = "org@test.local",
+            UserId = userId,
+            User = user,
+            RNA = "W442009999",
+            SIRET = "12345678901234",
+            FiscalStatus = FiscalStatus.GeneralInterest,
+            DefaultReceiptFrequency = ReceiptFrequency.Annually,
+            CreatedAt = DateTime.UtcNow
+        };
+    }
+
     [Fact]
     public async Task Login_ReturnsOk_WithMeranPayload_WhenCredentialsValid()
     {
         using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
-        dbContext.Users.Add(new User
+        var userId = Guid.NewGuid();
+        var user = new User
         {
-            Id = Guid.NewGuid(),
+            Id = userId,
             MeranId = Guid.Parse("11111111-1111-1111-1111-111111111111"),
             Firstname = "John",
             Lastname = "Doe",
@@ -84,7 +102,9 @@ public class AuthControllerTests
             AssociationName = "Asso",
             PasswordHash = "hash",
             Salt = "salt"
-        });
+        };
+        dbContext.Users.Add(user);
+        dbContext.Organizations.Add(CreateOrganization(Guid.NewGuid(), userId, user));
         await dbContext.SaveChangesAsync();
 
         using var httpClient = new HttpClient(new StaticJsonHandler(HttpStatusCode.OK, "{\"isActive\":true,\"plan\":\"basic\"}"));
@@ -107,9 +127,10 @@ public class AuthControllerTests
     public async Task Login_ReturnsUnauthorized_WhenPasswordInvalid()
     {
         using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
-        dbContext.Users.Add(new User
+        var userId = Guid.NewGuid();
+        var user = new User
         {
-            Id = Guid.NewGuid(),
+            Id = userId,
             MeranId = Guid.NewGuid(),
             Firstname = "John",
             Lastname = "Doe",
@@ -117,7 +138,9 @@ public class AuthControllerTests
             AssociationName = "Asso",
             PasswordHash = "hash",
             Salt = "salt"
-        });
+        };
+        dbContext.Users.Add(user);
+        dbContext.Organizations.Add(CreateOrganization(Guid.NewGuid(), userId, user));
         await dbContext.SaveChangesAsync();
 
         using var httpClient = new HttpClient(new StaticJsonHandler(HttpStatusCode.OK, "{\"isActive\":true}"));
@@ -136,9 +159,10 @@ public class AuthControllerTests
     public async Task Login_ReturnsBadGateway_WhenMeranFails()
     {
         using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
-        dbContext.Users.Add(new User
+        var userId = Guid.NewGuid();
+        var user = new User
         {
-            Id = Guid.NewGuid(),
+            Id = userId,
             MeranId = Guid.NewGuid(),
             Firstname = "John",
             Lastname = "Doe",
@@ -146,7 +170,9 @@ public class AuthControllerTests
             AssociationName = "Asso",
             PasswordHash = "hash",
             Salt = "salt"
-        });
+        };
+        dbContext.Users.Add(user);
+        dbContext.Organizations.Add(CreateOrganization(Guid.NewGuid(), userId, user));
         await dbContext.SaveChangesAsync();
 
         using var httpClient = new HttpClient(new StaticJsonHandler(HttpStatusCode.Unauthorized, "{\"error\":\"forbidden\"}"));

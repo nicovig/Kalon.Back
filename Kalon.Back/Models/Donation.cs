@@ -30,5 +30,6 @@ public class Donation
     public DateTime? UpdatedAt { get; set; }
 
     // navigation vers le reçu fiscal — null si pas encore généré
-    public TaxReceipt? TaxReceipt { get; set; }
+    public Guid? GeneratedDocumentId { get; set; }
+    public GeneratedDocument? GeneratedDocument { get; set; }
 }

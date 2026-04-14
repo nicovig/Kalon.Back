@@ -30,4 +30,6 @@ public class User
     [Required]
     public string Salt { get; set; } = string.Empty;
 
+    // navigation vers l'organisation — null avant que l'asso soit créée
+    public Organization? Organization { get; set; }
 }

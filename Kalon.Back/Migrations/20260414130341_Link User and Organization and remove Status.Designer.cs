@@ -3,6 +3,7 @@ using System;
 using Kalon.Back.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Kalon.Back.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260414130341_Link User and Organization and remove Status")]
+    partial class LinkUserandOrganizationandremoveStatus
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -186,9 +189,6 @@ namespace Kalon.Back.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid?>("GeneratedDocumentId")
-                        .HasColumnType("uuid");
-
                     b.Property<bool>("IsAnonymous")
                         .HasColumnType("boolean");
 
@@ -208,8 +208,6 @@ namespace Kalon.Back.Migrations
 
                     b.HasIndex("ContactId");
 
-                    b.HasIndex("GeneratedDocumentId");
-
                     b.HasIndex("OrganizationId");
 
                     b.HasIndex("OrganizationId", "Date");
@@ -217,6 +215,54 @@ namespace Kalon.Back.Migrations
                     b.HasIndex("OrganizationId", "DonationType");
 
                     b.ToTable("donations", (string)null);
+                });
+
+            modelBuilder.Entity("Kalon.Back.Models.EmailLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("ContactId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("SentAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SentToEmail")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("TaxReceiptId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContactId");
+
+                    b.HasIndex("OrganizationId");
+
+                    b.HasIndex("TaxReceiptId");
+
+                    b.ToTable("email_logs", (string)null);
                 });
 
             modelBuilder.Entity("Kalon.Back.Models.EmailTemplate", b =>
@@ -255,162 +301,6 @@ namespace Kalon.Back.Migrations
                     b.HasIndex("OrganizationId");
 
                     b.ToTable("email_templates", (string)null);
-                });
-
-            modelBuilder.Entity("Kalon.Back.Models.GeneratedDocument", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("DocumentType")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("GeneratedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("OrderNumber")
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("OrganizationId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("PdfPath")
-                        .HasColumnType("text");
-
-                    b.Property<string>("SendError")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("SentAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("SentToEmail")
-                        .HasColumnType("text");
-
-                    b.Property<string>("SignatureImagePath")
-                        .HasColumnType("text");
-
-                    b.Property<decimal>("SnapshotAmount")
-                        .HasColumnType("numeric");
-
-                    b.Property<string>("SnapshotContactAddress")
-                        .HasColumnType("text");
-
-                    b.Property<string>("SnapshotContactDisplayName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("SnapshotContactSiret")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("SnapshotDonationDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("SnapshotDonationType")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("SnapshotOrgCity")
-                        .HasColumnType("text");
-
-                    b.Property<string>("SnapshotOrgFiscalStatus")
-                        .HasColumnType("text");
-
-                    b.Property<string>("SnapshotOrgName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("SnapshotOrgPostalCode")
-                        .HasColumnType("text");
-
-                    b.Property<string>("SnapshotOrgRna")
-                        .HasColumnType("text");
-
-                    b.Property<string>("SnapshotOrgSiret")
-                        .HasColumnType("text");
-
-                    b.Property<string>("SnapshotOrgStreet")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<decimal?>("TaxReductionRate")
-                        .HasColumnType("numeric");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OrganizationId", "DocumentType");
-
-                    b.HasIndex("OrganizationId", "OrderNumber");
-
-                    b.HasIndex("OrganizationId", "Status");
-
-                    b.ToTable("generated_documents", (string)null);
-                });
-
-            modelBuilder.Entity("Kalon.Back.Models.MailLog", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Body")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("ContactId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("ErrorMessage")
-                        .HasColumnType("text");
-
-                    b.Property<Guid?>("GeneratedDocumentId")
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("IsEmail")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime?>("MailedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("MailedBy")
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("OrganizationId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("PrintedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("SentToEmail")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Subject")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ContactId");
-
-                    b.HasIndex("GeneratedDocumentId");
-
-                    b.HasIndex("OrganizationId");
-
-                    b.ToTable("mail_logs", (string)null);
                 });
 
             modelBuilder.Entity("Kalon.Back.Models.Organization", b =>
@@ -511,6 +401,109 @@ namespace Kalon.Back.Migrations
                         .IsUnique();
 
                     b.ToTable("organization_logos", (string)null);
+                });
+
+            modelBuilder.Entity("Kalon.Back.Models.TaxReceipt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CerfaType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("DonationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("GeneratedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("OrderNumber")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PdfPath")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SendError")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("SentAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SentToEmail")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SignatureImagePath")
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("SnapshotAmount")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("SnapshotContactAddress")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SnapshotContactDisplayName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("SnapshotContactSiret")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("SnapshotDonationDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SnapshotDonationType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("SnapshotOrgCity")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SnapshotOrgFiscalStatus")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SnapshotOrgName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("SnapshotOrgPostalCode")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SnapshotOrgRna")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SnapshotOrgSiret")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SnapshotOrgStreet")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("TaxReductionRate")
+                        .HasColumnType("numeric");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DonationId")
+                        .IsUnique();
+
+                    b.HasIndex("OrganizationId", "OrderNumber")
+                        .IsUnique();
+
+                    b.HasIndex("OrganizationId", "Status");
+
+                    b.ToTable("tax_receipts", (string)null);
                 });
 
             modelBuilder.Entity("Kalon.Back.Models.User", b =>
@@ -702,11 +695,6 @@ namespace Kalon.Back.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("Kalon.Back.Models.GeneratedDocument", "GeneratedDocument")
-                        .WithMany("Donations")
-                        .HasForeignKey("GeneratedDocumentId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("Kalon.Back.Models.Organization", "Organization")
                         .WithMany()
                         .HasForeignKey("OrganizationId")
@@ -715,9 +703,33 @@ namespace Kalon.Back.Migrations
 
                     b.Navigation("Contact");
 
-                    b.Navigation("GeneratedDocument");
+                    b.Navigation("Organization");
+                });
+
+            modelBuilder.Entity("Kalon.Back.Models.EmailLog", b =>
+                {
+                    b.HasOne("Kalon.Back.Models.Contact", "Contact")
+                        .WithMany()
+                        .HasForeignKey("ContactId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Kalon.Back.Models.Organization", "Organization")
+                        .WithMany("EmailLogs")
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Kalon.Back.Models.TaxReceipt", "TaxReceipt")
+                        .WithMany()
+                        .HasForeignKey("TaxReceiptId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Contact");
 
                     b.Navigation("Organization");
+
+                    b.Navigation("TaxReceipt");
                 });
 
             modelBuilder.Entity("Kalon.Back.Models.EmailTemplate", b =>
@@ -727,43 +739,6 @@ namespace Kalon.Back.Migrations
                         .HasForeignKey("OrganizationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("Organization");
-                });
-
-            modelBuilder.Entity("Kalon.Back.Models.GeneratedDocument", b =>
-                {
-                    b.HasOne("Kalon.Back.Models.Organization", "Organization")
-                        .WithMany("GeneratedDocuments")
-                        .HasForeignKey("OrganizationId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Organization");
-                });
-
-            modelBuilder.Entity("Kalon.Back.Models.MailLog", b =>
-                {
-                    b.HasOne("Kalon.Back.Models.Contact", "Contact")
-                        .WithMany()
-                        .HasForeignKey("ContactId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Kalon.Back.Models.GeneratedDocument", "GeneratedDocument")
-                        .WithMany()
-                        .HasForeignKey("GeneratedDocumentId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("Kalon.Back.Models.Organization", "Organization")
-                        .WithMany("MailLogs")
-                        .HasForeignKey("OrganizationId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Contact");
-
-                    b.Navigation("GeneratedDocument");
 
                     b.Navigation("Organization");
                 });
@@ -790,14 +765,33 @@ namespace Kalon.Back.Migrations
                     b.Navigation("Organization");
                 });
 
+            modelBuilder.Entity("Kalon.Back.Models.TaxReceipt", b =>
+                {
+                    b.HasOne("Kalon.Back.Models.Donation", "Donation")
+                        .WithOne("TaxReceipt")
+                        .HasForeignKey("Kalon.Back.Models.TaxReceipt", "DonationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Kalon.Back.Models.Organization", "Organization")
+                        .WithMany("TaxReceipts")
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Donation");
+
+                    b.Navigation("Organization");
+                });
+
             modelBuilder.Entity("Kalon.Back.Models.Contact", b =>
                 {
                     b.Navigation("Donations");
                 });
 
-            modelBuilder.Entity("Kalon.Back.Models.GeneratedDocument", b =>
+            modelBuilder.Entity("Kalon.Back.Models.Donation", b =>
                 {
-                    b.Navigation("Donations");
+                    b.Navigation("TaxReceipt");
                 });
 
             modelBuilder.Entity("Kalon.Back.Models.Organization", b =>
@@ -808,13 +802,13 @@ namespace Kalon.Back.Migrations
 
                     b.Navigation("ContentBlocks");
 
-                    b.Navigation("EmailTemplates");
+                    b.Navigation("EmailLogs");
 
-                    b.Navigation("GeneratedDocuments");
+                    b.Navigation("EmailTemplates");
 
                     b.Navigation("Logo");
 
-                    b.Navigation("MailLogs");
+                    b.Navigation("TaxReceipts");
                 });
 
             modelBuilder.Entity("Kalon.Back.Models.User", b =>

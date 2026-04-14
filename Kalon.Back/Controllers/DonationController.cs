@@ -1,5 +1,5 @@
 using Kalon.Back.Data;
-using Kalon.Back.Dtos.Donation;
+using Kalon.Back.DTOs;
 using Kalon.Back.Models;
 using Kalon.Back.Services.OrganizationAccess;
 using Microsoft.AspNetCore.Mvc;
@@ -23,7 +23,10 @@ public class DonationController(ApplicationDbContext dbContext, IUserOrganizatio
     };
 
     [HttpPost]
-    public async Task<IActionResult> Create([FromQuery] Guid userId, [FromBody] DonationUpsertRequest request,
+    [ProducesResponseType(typeof(DonationResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Create([FromQuery] Guid userId, [FromBody] Donation request,
         CancellationToken cancellationToken)
     {
         var access = await userOrganizationAccess.ResolveAsync(userId, cancellationToken);
@@ -35,7 +38,7 @@ public class DonationController(ApplicationDbContext dbContext, IUserOrganizatio
 
         var validationError = await ValidateRequestAsync(organizationId, request, cancellationToken);
         if (validationError is not null)
-            return BadRequest(new { message = validationError });
+            return BadRequest(new ApiMessageResponse { Message = validationError });
 
         var donation = new Donation
         {
@@ -48,11 +51,14 @@ public class DonationController(ApplicationDbContext dbContext, IUserOrganizatio
         dbContext.Donations.Add(donation);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        var details = await ProjectDetailsAsync(donation.Id, organizationId, cancellationToken);
+        var details = await ProjectDonationAsync(donation.Id, organizationId, cancellationToken);
         return CreatedAtAction(nameof(GetById), new { userId, id = donation.Id }, details);
     }
 
     [HttpGet]
+    [ProducesResponseType(typeof(DonationListResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetAll(
         [FromQuery] Guid userId,
         [FromQuery] DateTime? fromDate,
@@ -74,16 +80,16 @@ public class DonationController(ApplicationDbContext dbContext, IUserOrganizatio
 
         var paginationError = ValidatePagination(page, pageSize);
         if (paginationError is not null)
-            return BadRequest(new { message = paginationError });
+            return BadRequest(new ApiMessageResponse { Message = paginationError });
 
         if (!string.IsNullOrWhiteSpace(donationType) && !AllowedDonationTypes.Contains(donationType.Trim()))
-            return BadRequest(new { message = "Invalid donation type filter." });
+            return BadRequest(new ApiMessageResponse { Message = "Invalid donation type filter." });
 
         if (minAmount.HasValue && maxAmount.HasValue && minAmount.Value > maxAmount.Value)
-            return BadRequest(new { message = "minAmount cannot be greater than maxAmount." });
+            return BadRequest(new ApiMessageResponse { Message = "minAmount cannot be greater than maxAmount." });
 
         if (contactId.HasValue && contactId.Value == Guid.Empty)
-            return BadRequest(new { message = "contactId cannot be empty when provided." });
+            return BadRequest(new ApiMessageResponse { Message = "contactId cannot be empty when provided." });
 
         var query = dbContext.Donations
             .AsNoTracking()
@@ -118,23 +124,36 @@ public class DonationController(ApplicationDbContext dbContext, IUserOrganizatio
             .OrderByDescending(d => d.Date)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(d => new DonationListItemResponse
+            .Select(d => new DonationResponse
             {
                 Id = d.Id,
+                OrganizationId = d.OrganizationId,
                 ContactId = d.ContactId,
                 ContactDisplayName = $"{d.Contact.Firstname} {d.Contact.Lastname}".Trim(),
                 Amount = d.Amount,
                 Date = d.Date,
                 DonationType = d.DonationType,
                 PaymentMethod = d.PaymentMethod,
+                Notes = d.Notes,
                 IsAnonymous = d.IsAnonymous,
-                CreatedAt = d.CreatedAt
+                CreatedAt = d.CreatedAt,
+                UpdatedAt = d.UpdatedAt,
+                GeneratedDocument = d.GeneratedDocument == null
+                    ? null
+                    : new GeneratedDocumentSummary
+                    {
+                        Id = d.GeneratedDocument.Id,
+                        DocumentType = d.GeneratedDocument.DocumentType,
+                        OrderNumber = d.GeneratedDocument.OrderNumber,
+                        Status = d.GeneratedDocument.Status,
+                        PdfPath = d.GeneratedDocument.PdfPath
+                    }
             })
             .ToListAsync(cancellationToken);
 
         var totalPages = totalCount == 0 ? 0 : (int)Math.Ceiling(totalCount / (double)pageSize);
 
-        return Ok(new DonationPagedResponse
+        return Ok(new DonationListResponse
         {
             Items = items,
             TotalCount = totalCount,
@@ -145,6 +164,9 @@ public class DonationController(ApplicationDbContext dbContext, IUserOrganizatio
     }
 
     [HttpGet("{id:guid}")]
+    [ProducesResponseType(typeof(DonationResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById([FromQuery] Guid userId, [FromRoute] Guid id,
         CancellationToken cancellationToken)
     {
@@ -155,16 +177,19 @@ public class DonationController(ApplicationDbContext dbContext, IUserOrganizatio
 
         var organizationId = resolved.OrganizationId;
 
-        var donation = await ProjectDetailsAsync(id, organizationId, cancellationToken);
+        var donation = await ProjectDonationAsync(id, organizationId, cancellationToken);
         if (donation is null)
-            return NotFound(new { message = "Donation not found." });
+            return NotFound(new ApiMessageResponse { Message = "Donation not found." });
 
         return Ok(donation);
     }
 
     [HttpPut("{id:guid}")]
+    [ProducesResponseType(typeof(DonationResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Update([FromQuery] Guid userId, [FromRoute] Guid id,
-        [FromBody] DonationUpsertRequest request, CancellationToken cancellationToken)
+        [FromBody] Donation request, CancellationToken cancellationToken)
     {
         var access = await userOrganizationAccess.ResolveAsync(userId, cancellationToken);
         var resolved = access.ToActionResult();
@@ -175,19 +200,19 @@ public class DonationController(ApplicationDbContext dbContext, IUserOrganizatio
 
         var validationError = await ValidateRequestAsync(organizationId, request, cancellationToken);
         if (validationError is not null)
-            return BadRequest(new { message = validationError });
+            return BadRequest(new ApiMessageResponse { Message = validationError });
 
         var donation = await dbContext.Donations
             .FirstOrDefaultAsync(d => d.OrganizationId == organizationId && d.Id == id, cancellationToken);
 
         if (donation is null)
-            return NotFound(new { message = "Donation not found." });
+            return NotFound(new ApiMessageResponse { Message = "Donation not found." });
 
         ApplyRequest(donation, request);
         donation.UpdatedAt = DateTime.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        var details = await ProjectDetailsAsync(donation.Id, organizationId, cancellationToken);
+        var details = await ProjectDonationAsync(donation.Id, organizationId, cancellationToken);
         return Ok(details);
     }
 
@@ -200,7 +225,7 @@ public class DonationController(ApplicationDbContext dbContext, IUserOrganizatio
         return null;
     }
 
-    private async Task<string?> ValidateRequestAsync(Guid organizationId, DonationUpsertRequest request,
+    private async Task<string?> ValidateRequestAsync(Guid organizationId, Donation request,
         CancellationToken cancellationToken)
     {
         if (request.ContactId == Guid.Empty)
@@ -222,7 +247,7 @@ public class DonationController(ApplicationDbContext dbContext, IUserOrganizatio
         return null;
     }
 
-    private static void ApplyRequest(Donation donation, DonationUpsertRequest request)
+    private static void ApplyRequest(Donation donation, Donation request)
     {
         donation.ContactId = request.ContactId;
         donation.Amount = request.Amount;
@@ -233,25 +258,36 @@ public class DonationController(ApplicationDbContext dbContext, IUserOrganizatio
         donation.IsAnonymous = request.IsAnonymous;
     }
 
-    private Task<DonationDetailsResponse?> ProjectDetailsAsync(Guid donationId, Guid organizationId,
+    private Task<DonationResponse?> ProjectDonationAsync(Guid donationId, Guid organizationId,
         CancellationToken cancellationToken)
     {
         return dbContext.Donations
             .AsNoTracking()
             .Where(d => d.OrganizationId == organizationId && d.Id == donationId)
-            .Select(d => new DonationDetailsResponse
+            .Select(d => new DonationResponse
             {
                 Id = d.Id,
+                OrganizationId = d.OrganizationId,
                 ContactId = d.ContactId,
                 ContactDisplayName = $"{d.Contact.Firstname} {d.Contact.Lastname}".Trim(),
                 Amount = d.Amount,
                 Date = d.Date,
                 DonationType = d.DonationType,
                 PaymentMethod = d.PaymentMethod,
-                IsAnonymous = d.IsAnonymous,
                 Notes = d.Notes,
+                IsAnonymous = d.IsAnonymous,
                 CreatedAt = d.CreatedAt,
-                UpdatedAt = d.UpdatedAt
+                UpdatedAt = d.UpdatedAt,
+                GeneratedDocument = d.GeneratedDocument == null
+                    ? null
+                    : new GeneratedDocumentSummary
+                    {
+                        Id = d.GeneratedDocument.Id,
+                        DocumentType = d.GeneratedDocument.DocumentType,
+                        OrderNumber = d.GeneratedDocument.OrderNumber,
+                        Status = d.GeneratedDocument.Status,
+                        PdfPath = d.GeneratedDocument.PdfPath
+                    }
             })
             .FirstOrDefaultAsync(cancellationToken);
     }

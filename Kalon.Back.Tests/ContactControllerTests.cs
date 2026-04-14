@@ -1,6 +1,5 @@
 using Kalon.Back.Controllers;
 using Kalon.Back.Data;
-using Kalon.Back.Dtos.Contact;
 using Kalon.Back.Services.OrganizationAccess;
 using Kalon.Back.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -58,7 +57,6 @@ public class ContactControllerTests
             Id = id,
             OrganizationId = organizationId,
             Kind = ContactKinds.Donor,
-            Status = ContactStatuses.Active,
             Firstname = firstname,
             Lastname = "Lastname",
             Email = $"{firstname.ToLowerInvariant()}@example.com",
@@ -90,10 +88,9 @@ public class ContactControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
-        var request = new ContactUpsertRequest
+        var request = new Contact
         {
             Kind = ContactKinds.Donor,
-            Status = ContactStatuses.Active,
             Firstname = "New",
             Lastname = "Contact",
             Email = "new.contact@example.com"
@@ -102,7 +99,7 @@ public class ContactControllerTests
         var result = await controller.Create(userId, request, CancellationToken.None);
 
         var created = Assert.IsType<CreatedAtActionResult>(result);
-        var payload = Assert.IsType<ContactDetailsResponse>(created.Value);
+        var payload = Assert.IsType<Contact>(created.Value);
         Assert.Equal("New", payload.Firstname);
         Assert.Equal(ContactKinds.Donor, payload.Kind);
     }
@@ -142,7 +139,7 @@ public class ContactControllerTests
         var result = await controller.GetById(userId, contact.Id, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
-        var payload = Assert.IsType<ContactDetailsResponse>(ok.Value);
+        var payload = Assert.IsType<Contact>(ok.Value);
         Assert.Equal("John", payload.Firstname);
         Assert.Equal(contact.Id, payload.Id);
     }
@@ -162,10 +159,9 @@ public class ContactControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
-        var request = new ContactUpsertRequest
+        var request = new Contact
         {
             Kind = ContactKinds.Member,
-            Status = ContactStatuses.ToRemind,
             Firstname = "After",
             Lastname = "Updated",
             Email = "after@example.com"
@@ -174,10 +170,9 @@ public class ContactControllerTests
         var result = await controller.Update(userId, contact.Id, request, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
-        var payload = Assert.IsType<ContactDetailsResponse>(ok.Value);
+        var payload = Assert.IsType<Contact>(ok.Value);
         Assert.Equal("After", payload.Firstname);
         Assert.Equal(ContactKinds.Member, payload.Kind);
-        Assert.Equal(ContactStatuses.ToRemind, payload.Status);
     }
 
     [Fact]
@@ -195,10 +190,9 @@ public class ContactControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
-        var request = new ContactUpsertRequest
+        var request = new Contact
         {
             Kind = "invalid_kind",
-            Status = ContactStatuses.Active,
             Firstname = "After",
             Lastname = "Updated"
         };
@@ -247,7 +241,7 @@ public class ContactControllerTests
         var result = await controller.GetAll(userId, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
-        var payload = Assert.IsAssignableFrom<IEnumerable<ContactListItemResponse>>(ok.Value);
+        var payload = Assert.IsAssignableFrom<IEnumerable<Contact>>(ok.Value);
         var list = payload.ToList();
 
         Assert.Equal(2, list.Count);

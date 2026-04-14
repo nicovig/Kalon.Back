@@ -14,7 +14,9 @@ public class Contact
 
     public string Kind { get; set; }
 
-    public string Status { get; set; }
+    // true si le contact est décédé — exclu de tous les envois et calculs
+    // les autres statuts (new, to_remind, inactive, active) sont calculés dynamiquement
+    public bool IsOut { get; set; }
 
     // ── identité ──────────────────────────────────────────
     public string Firstname { get; set; }
@@ -136,27 +138,6 @@ public static class ContactKinds
         Company,
         Member,
         Helper
-    };
-
-    public static bool IsValid(string? value) =>
-        value is not null && All.Contains(value);
-}
-
-public static class ContactStatuses
-{
-    public const string Active = "active";
-    public const string ToRemind = "to_remind";
-    public const string New = "new";
-    public const string Inactive = "inactive";
-    public const string Out = "out";
-
-    public static readonly IReadOnlyList<string> All = new[]
-    {
-        Active,
-        ToRemind,
-        New,
-        Inactive,
-        Out
     };
 
     public static bool IsValid(string? value) =>

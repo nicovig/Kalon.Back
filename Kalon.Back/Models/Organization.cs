@@ -49,12 +49,23 @@ public class Organization
     // navigation Logo — null si pas encore uploadé
     public OrganizationLogo? Logo { get; set; }
 
+    public ContactStatusSettings? ContactStatusSettings { get; set; }
+
     // navigation collections
     public ICollection<Contact> Contacts { get; set; } = new List<Contact>();
     public ICollection<EmailTemplate> EmailTemplates { get; set; } = new List<EmailTemplate>();
-    public ICollection<EmailLog> EmailLogs { get; set; } = new List<EmailLog>();
-    public ICollection<TaxReceipt> TaxReceipts { get; set; } = new List<TaxReceipt>();
+    public ICollection<MailLog> MailLogs { get; set; } = new List<MailLog>();
+    public ICollection<GeneratedDocument> GeneratedDocuments { get; set; } = new List<GeneratedDocument>();
     public ICollection<ContentBlock> ContentBlocks { get; set; } = new List<ContentBlock>();
+}
+
+public enum ReceiptFrequency
+{
+    Monthly,
+    Quarterly,
+    HalfYearly,
+    Annually,
+    OneTime,
 }
 
 public static class FiscalStatus

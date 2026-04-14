@@ -10,10 +10,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<OrganizationLogo> OrganizationLogos { get; set; }
     public DbSet<Contact> Contacts { get; set; }
     public DbSet<Donation> Donations { get; set; }
-    public DbSet<TaxReceipt> TaxReceipts { get; set; }
+    public DbSet<GeneratedDocument> GeneratedDocuments { get; set; }
     public DbSet<EmailTemplate> EmailTemplates { get; set; }
-    public DbSet<EmailLog> EmailLogs { get; set; }
+    public DbSet<MailLog> MailLogs { get; set; }
     public DbSet<ContentBlock> ContentBlocks { get; set; }
+    public DbSet<ContactStatusSettings> ContactStatusSettings { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -34,7 +35,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
             // relation 1-1 avec User
             entity.HasOne(o => o.User)
-                .WithOne()
+                .WithOne(u => u.Organization)
                 .HasForeignKey<Organization>(o => o.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
 
@@ -91,9 +92,20 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             });
 
             entity.HasIndex(c => c.OrganizationId);
-            entity.HasIndex(c => new { c.OrganizationId, c.Status });
             entity.HasIndex(c => new { c.OrganizationId, c.Kind });
             entity.HasIndex(c => new { c.OrganizationId, c.Department });
+        });
+
+        modelBuilder.Entity<ContactStatusSettings>(entity =>
+        {
+            entity.ToTable("contact_status_settings");
+
+            entity.HasOne(s => s.Organization)
+                .WithOne(o => o.ContactStatusSettings)
+                .HasForeignKey<ContactStatusSettings>(s => s.OrganizationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(s => s.OrganizationId).IsUnique();
         });
 
         // ── Donation ──────────────────────────────────────────────
@@ -111,31 +123,36 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .HasForeignKey(d => d.ContactId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // plusieurs donations peuvent être liées au même document généré
+            // ex: reçu fiscal annuel récapitulatif
+            entity.HasOne(d => d.GeneratedDocument)
+                .WithMany(doc => doc.Donations)
+                .HasForeignKey(d => d.GeneratedDocumentId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+
             entity.HasIndex(d => d.OrganizationId);
             entity.HasIndex(d => d.ContactId);
+            entity.HasIndex(d => d.GeneratedDocumentId);
             entity.HasIndex(d => new { d.OrganizationId, d.Date });
             entity.HasIndex(d => new { d.OrganizationId, d.DonationType });
         });
 
-        // ── TaxReceipt ────────────────────────────────────────────
-        modelBuilder.Entity<TaxReceipt>(entity =>
+        // ── GeneratedDocument ────────────────────────────────────────────
+        modelBuilder.Entity<GeneratedDocument>(entity =>
         {
-            entity.ToTable("tax_receipts");
+            entity.ToTable("generated_documents");
 
             entity.HasOne(r => r.Organization)
-                .WithMany(o => o.TaxReceipts)
+                .WithMany(o => o.GeneratedDocuments)
                 .HasForeignKey(r => r.OrganizationId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // relation 1-1 avec Donation
-            entity.HasOne(r => r.Donation)
-                .WithOne(d => d.TaxReceipt)
-                .HasForeignKey<TaxReceipt>(r => r.DonationId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            // deux reçus ne peuvent pas avoir le même numéro d'ordre pour la même asso
-            entity.HasIndex(r => new { r.OrganizationId, r.OrderNumber }).IsUnique();
+            // OrderNumber peut être null (membership_certificate) — index partiel pas supporté
+            // nativement par EF Core, on garde juste l'index non-unique
+            entity.HasIndex(r => new { r.OrganizationId, r.OrderNumber });
             entity.HasIndex(r => new { r.OrganizationId, r.Status });
+            entity.HasIndex(r => new { r.OrganizationId, r.DocumentType });
         });
 
         // ── EmailTemplate ─────────────────────────────────────────
@@ -151,13 +168,13 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.HasIndex(t => t.OrganizationId);
         });
 
-        // ── EmailLog ──────────────────────────────────────────────
-        modelBuilder.Entity<EmailLog>(entity =>
+        // ── MailLog ──────────────────────────────────────────────
+        modelBuilder.Entity<MailLog>(entity =>
         {
-            entity.ToTable("email_logs");
+            entity.ToTable("mail_logs");
 
             entity.HasOne(l => l.Organization)
-                .WithMany(o => o.EmailLogs)
+                .WithMany(o => o.MailLogs)
                 .HasForeignKey(l => l.OrganizationId)
                 .OnDelete(DeleteBehavior.Restrict);
 
@@ -166,16 +183,15 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .HasForeignKey(l => l.ContactId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // lien optionnel vers un reçu fiscal si le mail est un envoi de Cerfa
-            entity.HasOne(l => l.TaxReceipt)
+            entity.HasOne(l => l.GeneratedDocument)
                 .WithMany()
-                .HasForeignKey(l => l.TaxReceiptId)
+                .HasForeignKey(l => l.GeneratedDocumentId)
                 .IsRequired(false)
                 .OnDelete(DeleteBehavior.SetNull);
 
             entity.HasIndex(l => l.OrganizationId);
             entity.HasIndex(l => l.ContactId);
-            entity.HasIndex(l => l.TaxReceiptId);
+            entity.HasIndex(l => l.GeneratedDocumentId);
         });
 
         // ── ContentBlock ──────────────────────────────────────────

@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
+using Kalon.Back.DTOs;
 
 namespace Kalon.Back.Controllers;
 
@@ -7,5 +8,6 @@ namespace Kalon.Back.Controllers;
 public class HealthController : ControllerBase
 {
     [HttpGet]
-    public IActionResult Get() => Ok(new { status = "healthy", timestamp = DateTime.UtcNow });
+    [ProducesResponseType(typeof(HealthResponse), StatusCodes.Status200OK)]
+    public ActionResult<HealthResponse> Get() => Ok(new HealthResponse { Status = "healthy", Timestamp = DateTime.UtcNow });
 }

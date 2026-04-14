@@ -1,6 +1,6 @@
 using Kalon.Back.Controllers;
 using Kalon.Back.Data;
-using Kalon.Back.Dtos.Donation;
+using Kalon.Back.DTOs;
 using Kalon.Back.Services.OrganizationAccess;
 using Kalon.Back.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -60,7 +60,6 @@ public class DonationControllerTests
             Id = id,
             OrganizationId = organizationId,
             Kind = ContactKinds.Donor,
-            Status = ContactStatuses.Active,
             Firstname = firstname,
             Lastname = lastname,
             Email = $"{firstname.ToLowerInvariant()}@example.com",
@@ -97,7 +96,7 @@ public class DonationControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
-        var request = new DonationUpsertRequest
+        var request = new Donation
         {
             ContactId = contact.Id,
             Amount = 120.50m,
@@ -111,7 +110,7 @@ public class DonationControllerTests
         var result = await controller.Create(userId, request, CancellationToken.None);
 
         var created = Assert.IsType<CreatedAtActionResult>(result);
-        var payload = Assert.IsType<DonationDetailsResponse>(created.Value);
+        var payload = Assert.IsType<DonationResponse>(created.Value);
         Assert.Equal(120.50m, payload.Amount);
         Assert.Equal(contact.Id, payload.ContactId);
     }
@@ -136,7 +135,7 @@ public class DonationControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
-        var request = new DonationUpsertRequest
+        var request = new Donation
         {
             ContactId = otherContact.Id,
             Amount = 100m,
@@ -188,14 +187,13 @@ public class DonationControllerTests
             CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
-        var payload = Assert.IsType<DonationPagedResponse>(ok.Value);
-        var list = payload.Items.ToList();
+        var payload = Assert.IsType<DonationListResponse>(ok.Value);
 
         Assert.Equal(2, payload.TotalCount);
         Assert.Equal(1, payload.TotalPages);
-        Assert.Equal(2, list.Count);
-        Assert.Equal(80m, list[0].Amount);
-        Assert.Equal(50m, list[1].Amount);
+        Assert.Equal(2, payload.Items.Count);
+        Assert.Equal(80m, payload.Items[0].Amount);
+        Assert.Equal(50m, payload.Items[1].Amount);
     }
 
     [Fact]
@@ -229,7 +227,7 @@ public class DonationControllerTests
             CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
-        var payload = Assert.IsType<DonationPagedResponse>(ok.Value);
+        var payload = Assert.IsType<DonationListResponse>(ok.Value);
         Assert.Equal(2, payload.TotalCount);
         Assert.Equal(2, payload.TotalPages);
         Assert.Single(payload.Items);
@@ -267,7 +265,7 @@ public class DonationControllerTests
             CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
-        var payload = Assert.IsType<DonationPagedResponse>(ok.Value);
+        var payload = Assert.IsType<DonationListResponse>(ok.Value);
         Assert.Equal(1, payload.TotalCount);
         Assert.Equal("in_kind", payload.Items[0].DonationType);
     }
@@ -317,6 +315,52 @@ public class DonationControllerTests
     }
 
     [Fact]
+    public async Task GetById_ReturnsGeneratedDocumentSummary_WhenDocumentLinked()
+    {
+        using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var userId = Guid.NewGuid();
+        var user = CreateUser(userId, "owner@example.com");
+        var organizationId = Guid.NewGuid();
+        var organization = CreateOrganization(organizationId, userId, user);
+        var contact = CreateContact(Guid.NewGuid(), organizationId, "Jane", "Roe");
+        var docId = Guid.NewGuid();
+        var doc = new GeneratedDocument
+        {
+            Id = docId,
+            OrganizationId = organizationId,
+            DocumentType = DocumentType.PaymentAttestation,
+            SnapshotOrgName = "Test Organization",
+            SnapshotContactDisplayName = "Jane Roe",
+            SnapshotAmount = 30m,
+            SnapshotDonationDate = DateTime.UtcNow.Date,
+            SnapshotDonationType = "financial",
+            Status = GeneratedDocumentStatuses.Generated,
+            PdfPath = "/docs/x.pdf",
+            CreatedAt = DateTime.UtcNow
+        };
+        var donation = CreateDonation(Guid.NewGuid(), organizationId, contact.Id, 30m, DateTime.UtcNow.AddDays(-1), "financial");
+        donation.GeneratedDocumentId = docId;
+
+        dbContext.Users.Add(user);
+        dbContext.Organizations.Add(organization);
+        dbContext.Contacts.Add(contact);
+        dbContext.GeneratedDocuments.Add(doc);
+        dbContext.Donations.Add(donation);
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext);
+        var result = await controller.GetById(userId, donation.Id, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var payload = Assert.IsType<DonationResponse>(ok.Value);
+        Assert.NotNull(payload.GeneratedDocument);
+        Assert.Equal(docId, payload.GeneratedDocument!.Id);
+        Assert.Equal(DocumentType.PaymentAttestation, payload.GeneratedDocument.DocumentType);
+        Assert.Equal(GeneratedDocumentStatuses.Generated, payload.GeneratedDocument.Status);
+        Assert.Equal("/docs/x.pdf", payload.GeneratedDocument.PdfPath);
+    }
+
+    [Fact]
     public async Task Update_ReturnsOk_WhenRequestIsValid()
     {
         using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
@@ -334,7 +378,7 @@ public class DonationControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
-        var request = new DonationUpsertRequest
+        var request = new Donation
         {
             ContactId = contact.Id,
             Amount = 75m,
@@ -348,7 +392,7 @@ public class DonationControllerTests
         var result = await controller.Update(userId, donation.Id, request, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
-        var payload = Assert.IsType<DonationDetailsResponse>(ok.Value);
+        var payload = Assert.IsType<DonationResponse>(ok.Value);
         Assert.Equal(75m, payload.Amount);
         Assert.Equal("sponsoring", payload.DonationType);
         Assert.True(payload.IsAnonymous);

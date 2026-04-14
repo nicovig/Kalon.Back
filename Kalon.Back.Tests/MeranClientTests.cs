@@ -4,7 +4,7 @@ using System.Net.Http;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Kalon.Back.Dtos.Auth;
+using Kalon.Back.Models;
 using Kalon.Back.Services;
 using Microsoft.Extensions.Options;
 using Xunit;
