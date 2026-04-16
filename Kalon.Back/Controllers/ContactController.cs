@@ -13,7 +13,7 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
     : ControllerBase
 {
     [HttpPost]
-    [ProducesResponseType(typeof(Contact), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ContactResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Create([FromQuery] Guid userId, [FromBody] Contact request,
@@ -41,11 +41,15 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
         dbContext.Contacts.Add(contact);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return CreatedAtAction(nameof(GetById), new { userId, id = contact.Id }, contact);
+        var result = await ProjectContacts()
+            .Where(c => c.OrganizationId == organizationId && c.Id == contact.Id)
+            .FirstAsync(cancellationToken);
+
+        return CreatedAtAction(nameof(GetById), new { userId, id = contact.Id }, result);
     }
 
     [HttpGet]
-    [ProducesResponseType(typeof(List<Contact>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(List<ContactResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetAll([FromQuery] Guid userId, CancellationToken cancellationToken)
@@ -57,10 +61,7 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
 
         var organizationId = resolved.OrganizationId;
 
-        var contacts = await dbContext.Contacts
-            .Include(c => c.Address)
-            .Include(c => c.Enterprise)
-            .AsNoTracking()
+        var contacts = await ProjectContacts()
             .Where(c => c.OrganizationId == organizationId)
             .OrderByDescending(c => c.CreatedAt)
             .ToListAsync(cancellationToken);
@@ -69,7 +70,7 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
     }
 
     [HttpGet("{id:guid}")]
-    [ProducesResponseType(typeof(Contact), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ContactResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById([FromQuery] Guid userId, [FromRoute] Guid id,
@@ -82,10 +83,7 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
 
         var organizationId = resolved.OrganizationId;
 
-        var contact = await dbContext.Contacts
-            .Include(c => c.Address)
-            .Include(c => c.Enterprise)
-            .AsNoTracking()
+        var contact = await ProjectContacts()
             .Where(c => c.OrganizationId == organizationId && c.Id == id)
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -96,7 +94,7 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
     }
 
     [HttpPut("{id:guid}")]
-    [ProducesResponseType(typeof(Contact), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ContactResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Update([FromQuery] Guid userId, [FromRoute] Guid id,
@@ -125,7 +123,11 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
         contact.UpdatedAt = DateTime.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return Ok(contact);
+        var result = await ProjectContacts()
+            .Where(c => c.OrganizationId == organizationId && c.Id == contact.Id)
+            .FirstAsync(cancellationToken);
+
+        return Ok(result);
     }
 
     private static string? ValidateRequest(Contact request)
@@ -152,5 +154,67 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
         contact.PreferredFrequencySendingReceipt = request.PreferredFrequencySendingReceipt?.Trim();
         contact.Address = request.Address;
         contact.Enterprise = request.Enterprise;
+    }
+
+    private IQueryable<ContactResponse> ProjectContacts()
+    {
+        return dbContext.Contacts
+            .AsNoTracking()
+            .Select(c => new ContactResponse
+            {
+                Id = c.Id,
+                OrganizationId = c.OrganizationId,
+                Kind = c.Kind,
+                IsOut = c.IsOut,
+                Firstname = c.Firstname,
+                Lastname = c.Lastname,
+                Email = c.Email,
+                Phone = c.Phone,
+                JobTitle = c.JobTitle,
+                BirthDate = c.BirthDate,
+                Gender = c.Gender,
+                Notes = c.Notes,
+                Department = c.Department,
+                PreferredFrequencySendingReceipt = c.PreferredFrequencySendingReceipt,
+                Address = c.Address == null
+                    ? null
+                    : new ContactAddress
+                    {
+                        Street = c.Address.Street,
+                        PostalCode = c.Address.PostalCode,
+                        City = c.Address.City,
+                        Country = c.Address.Country,
+                        Phone = c.Address.Phone,
+                        Email = c.Address.Email
+                    },
+                Enterprise = c.Enterprise == null
+                    ? null
+                    : new ContactEnterprise
+                    {
+                        Name = c.Enterprise.Name,
+                        Siret = c.Enterprise.Siret,
+                        SupportKind = c.Enterprise.SupportKind,
+                        Street = c.Enterprise.Street,
+                        PostalCode = c.Enterprise.PostalCode,
+                        City = c.Enterprise.City,
+                        Country = c.Enterprise.Country,
+                        ContactFirstname = c.Enterprise.ContactFirstname,
+                        ContactLastname = c.Enterprise.ContactLastname,
+                        ContactEmail = c.Enterprise.ContactEmail,
+                        ContactPhone = c.Enterprise.ContactPhone
+                    },
+                CreatedAt = c.CreatedAt,
+                UpdatedAt = c.UpdatedAt,
+                TotalDonation = c.Donations.Sum(d => (decimal?)d.Amount) ?? 0m,
+                FirstDonationAt = c.Donations.Min(d => (DateTime?)d.Date),
+                LastDonation = c.Donations.Max(d => (DateTime?)d.Date),
+                LastDonationAmount = c.Donations
+                    .OrderByDescending(d => d.Date)
+                    .ThenByDescending(d => d.CreatedAt)
+                    .Select(d => (decimal?)d.Amount)
+                    .FirstOrDefault(),
+                AverageDonationAmount = c.Donations.Average(d => (decimal?)d.Amount) ?? 0m,
+                DonationCount = c.Donations.Count()
+            });
     }
 }

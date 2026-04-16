@@ -1,5 +1,6 @@
 using Kalon.Back.Controllers;
 using Kalon.Back.Data;
+using Kalon.Back.DTOs;
 using Kalon.Back.Models;
 using Kalon.Back.Services.OrganizationAccess;
 using Microsoft.AspNetCore.Mvc;
@@ -51,6 +52,30 @@ public class ContactStatusSettingsControllerTests
     }
 
     [Fact]
+    public async Task Get_ReturnsBadRequest_WhenUserIdIsEmpty()
+    {
+        using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var controller = CreateController(dbContext);
+
+        var result = await controller.Get(Guid.Empty, CancellationToken.None);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Equal(400, badRequest.StatusCode);
+    }
+
+    [Fact]
+    public async Task Get_ReturnsNotFound_WhenOrganizationDoesNotExistForUser()
+    {
+        using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var controller = CreateController(dbContext);
+
+        var result = await controller.Get(Guid.NewGuid(), CancellationToken.None);
+
+        var notFound = Assert.IsType<NotFoundObjectResult>(result);
+        Assert.Equal(404, notFound.StatusCode);
+    }
+
+    [Fact]
     public async Task Get_ReturnsDefaults_WhenSettingsDoNotExist()
     {
         using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
@@ -83,7 +108,7 @@ public class ContactStatusSettingsControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
-        var result = await controller.Upsert(userId, new ContactStatusSettings
+        var result = await controller.Upsert(userId, new ContactStatusSettingsUpsertRequest
         {
             NewDurationDays = 20,
             ToRemindAfterMonths = 10,
@@ -109,7 +134,7 @@ public class ContactStatusSettingsControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
-        var result = await controller.Upsert(userId, new ContactStatusSettings
+        var result = await controller.Upsert(userId, new ContactStatusSettingsUpsertRequest
         {
             NewDurationDays = 30,
             ToRemindAfterMonths = 24,

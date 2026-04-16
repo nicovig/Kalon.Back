@@ -57,7 +57,16 @@ public class Contact
     public decimal TotalDonation { get; set; }
 
     [NotMapped]
+    public DateTime? FirstDonationAt { get; set; }
+
+    [NotMapped]
     public DateTime? LastDonation { get; set; }
+
+    [NotMapped]
+    public decimal? LastDonationAmount { get; set; }
+
+    [NotMapped]
+    public decimal AverageDonationAmount { get; set; }
 
     [NotMapped]
     public int DonationCount { get; set; }

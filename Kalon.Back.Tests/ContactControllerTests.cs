@@ -1,5 +1,6 @@
 using Kalon.Back.Controllers;
 using Kalon.Back.Data;
+using Kalon.Back.DTOs;
 using Kalon.Back.Services.OrganizationAccess;
 using Kalon.Back.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -99,7 +100,7 @@ public class ContactControllerTests
         var result = await controller.Create(userId, request, CancellationToken.None);
 
         var created = Assert.IsType<CreatedAtActionResult>(result);
-        var payload = Assert.IsType<Contact>(created.Value);
+        var payload = Assert.IsType<ContactResponse>(created.Value);
         Assert.Equal("New", payload.Firstname);
         Assert.Equal(ContactKinds.Donor, payload.Kind);
     }
@@ -139,9 +140,15 @@ public class ContactControllerTests
         var result = await controller.GetById(userId, contact.Id, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
-        var payload = Assert.IsType<Contact>(ok.Value);
+        var payload = Assert.IsType<ContactResponse>(ok.Value);
         Assert.Equal("John", payload.Firstname);
         Assert.Equal(contact.Id, payload.Id);
+        Assert.Equal(0m, payload.TotalDonation);
+        Assert.Null(payload.FirstDonationAt);
+        Assert.Null(payload.LastDonation);
+        Assert.Null(payload.LastDonationAmount);
+        Assert.Equal(0m, payload.AverageDonationAmount);
+        Assert.Equal(0, payload.DonationCount);
     }
 
     [Fact]
@@ -170,7 +177,7 @@ public class ContactControllerTests
         var result = await controller.Update(userId, contact.Id, request, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
-        var payload = Assert.IsType<Contact>(ok.Value);
+        var payload = Assert.IsType<ContactResponse>(ok.Value);
         Assert.Equal("After", payload.Firstname);
         Assert.Equal(ContactKinds.Member, payload.Kind);
     }
@@ -241,12 +248,113 @@ public class ContactControllerTests
         var result = await controller.GetAll(userId, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
-        var payload = Assert.IsAssignableFrom<IEnumerable<Contact>>(ok.Value);
+        var payload = Assert.IsAssignableFrom<IEnumerable<ContactResponse>>(ok.Value);
         var list = payload.ToList();
 
         Assert.Equal(2, list.Count);
         Assert.Equal("Newest", list[0].Firstname);
         Assert.Equal("Older", list[1].Firstname);
         Assert.DoesNotContain(list, c => c.Firstname == "OtherOrg");
+    }
+
+    [Fact]
+    public async Task GetById_ReturnsComputedDonationAggregates()
+    {
+        using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var userId = Guid.NewGuid();
+        var user = CreateUser(userId, "owner@example.com");
+        var organizationId = Guid.NewGuid();
+        var organization = CreateOrganization(organizationId, userId, user);
+        var contact = CreateContact(Guid.NewGuid(), organizationId, "John", DateTime.UtcNow);
+        var olderDonationDate = DateTime.UtcNow.Date.AddDays(-10);
+        var latestDonationDate = DateTime.UtcNow.Date.AddDays(-2);
+
+        dbContext.Users.Add(user);
+        dbContext.Organizations.Add(organization);
+        dbContext.Contacts.Add(contact);
+        dbContext.Donations.AddRange(
+            new Donation
+            {
+                Id = Guid.NewGuid(),
+                OrganizationId = organizationId,
+                ContactId = contact.Id,
+                Amount = 10m,
+                Date = olderDonationDate,
+                DonationType = "financial",
+                CreatedAt = DateTime.UtcNow
+            },
+            new Donation
+            {
+                Id = Guid.NewGuid(),
+                OrganizationId = organizationId,
+                ContactId = contact.Id,
+                Amount = 25m,
+                Date = latestDonationDate,
+                DonationType = "financial",
+                CreatedAt = DateTime.UtcNow
+            });
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext);
+        var result = await controller.GetById(userId, contact.Id, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var payload = Assert.IsType<ContactResponse>(ok.Value);
+        Assert.Equal(35m, payload.TotalDonation);
+        Assert.Equal(olderDonationDate, payload.FirstDonationAt);
+        Assert.Equal(latestDonationDate, payload.LastDonation);
+        Assert.Equal(25m, payload.LastDonationAmount);
+        Assert.Equal(17.5m, payload.AverageDonationAmount);
+        Assert.Equal(2, payload.DonationCount);
+    }
+
+    [Fact]
+    public async Task GetAll_ReturnsComputedDonationAggregates()
+    {
+        using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var userId = Guid.NewGuid();
+        var user = CreateUser(userId, "owner@example.com");
+        var organizationId = Guid.NewGuid();
+        var organization = CreateOrganization(organizationId, userId, user);
+        var contact = CreateContact(Guid.NewGuid(), organizationId, "Aggregated", DateTime.UtcNow);
+
+        dbContext.Users.Add(user);
+        dbContext.Organizations.Add(organization);
+        dbContext.Contacts.Add(contact);
+        dbContext.Donations.AddRange(
+            new Donation
+            {
+                Id = Guid.NewGuid(),
+                OrganizationId = organizationId,
+                ContactId = contact.Id,
+                Amount = 5m,
+                Date = DateTime.UtcNow.Date.AddDays(-5),
+                DonationType = "financial",
+                CreatedAt = DateTime.UtcNow
+            },
+            new Donation
+            {
+                Id = Guid.NewGuid(),
+                OrganizationId = organizationId,
+                ContactId = contact.Id,
+                Amount = 15m,
+                Date = DateTime.UtcNow.Date.AddDays(-1),
+                DonationType = "financial",
+                CreatedAt = DateTime.UtcNow
+            });
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext);
+        var result = await controller.GetAll(userId, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var payload = Assert.IsAssignableFrom<IEnumerable<ContactResponse>>(ok.Value);
+        var aggregated = Assert.Single(payload);
+        Assert.Equal(20m, aggregated.TotalDonation);
+        Assert.Equal(DateTime.UtcNow.Date.AddDays(-5), aggregated.FirstDonationAt);
+        Assert.Equal(2, aggregated.DonationCount);
+        Assert.Equal(DateTime.UtcNow.Date.AddDays(-1), aggregated.LastDonation);
+        Assert.Equal(15m, aggregated.LastDonationAmount);
+        Assert.Equal(10m, aggregated.AverageDonationAmount);
     }
 }

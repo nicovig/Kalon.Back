@@ -43,7 +43,7 @@ public class ContactStatusSettingsController(
     [ProducesResponseType(typeof(ContactStatusSettings), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Upsert([FromQuery] Guid userId, [FromBody] ContactStatusSettings request,
+    public async Task<IActionResult> Upsert([FromQuery] Guid userId, [FromBody] ContactStatusSettingsUpsertRequest request,
         CancellationToken cancellationToken)
     {
         var validationError = Validate(request);
@@ -128,7 +128,7 @@ public class ContactStatusSettingsController(
         InactiveAfterMonths = DefaultInactiveAfterMonths
     };
 
-    private static string? Validate(ContactStatusSettings request)
+    private static string? Validate(ContactStatusSettingsUpsertRequest request)
     {
         if (request.NewDurationDays < 0)
             return "NewDurationDays must be greater than or equal to 0.";
