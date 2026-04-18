@@ -46,6 +46,9 @@ public class Organization
 
     public DateTime CreatedAt { get; set; }
 
+    public string? SenderEmail { get; set; }
+    public string? SenderName { get; set; }
+
     // navigation Logo — null si pas encore uploadé
     public OrganizationLogo? Logo { get; set; }
 

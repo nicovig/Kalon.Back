@@ -4,6 +4,11 @@ using Microsoft.Extensions.Options;
 
 namespace Kalon.Back.Services;
 
+public interface IMeranTokenProvider
+{
+    Task<string> GetBearerTokenAsync(CancellationToken cancellationToken = default);
+}
+
 public class MeranTokenProvider : IMeranTokenProvider
 {
     private readonly MeranOptions _options;

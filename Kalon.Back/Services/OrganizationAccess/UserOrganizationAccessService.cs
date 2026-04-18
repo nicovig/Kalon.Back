@@ -3,6 +3,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Kalon.Back.Services.OrganizationAccess;
 
+public interface IUserOrganizationAccessService
+{
+    Task<OrganizationAccessOutcome> ResolveAsync(Guid userId, CancellationToken cancellationToken = default);
+}
+
 public sealed class UserOrganizationAccessService(ApplicationDbContext dbContext) : IUserOrganizationAccessService
 {
     public async Task<OrganizationAccessOutcome> ResolveAsync(Guid userId, CancellationToken cancellationToken = default)

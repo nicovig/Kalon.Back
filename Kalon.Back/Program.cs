@@ -1,14 +1,26 @@
+using Kalon.Back.Configuration;
 using Kalon.Back.Data;
 using Kalon.Back.Services;
+using Kalon.Back.Services.Mail;
 using Kalon.Back.Services.OrganizationAccess;
-using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
+using QuestPDF.Infrastructure;
+using System.Collections.Generic;
 
-var builder = WebApplication.CreateBuilder(args);   
+QuestPDF.Settings.License = LicenseType.Community;
+
+var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.Configure<PasswordOptions>(builder.Configuration.GetSection("Password"));
 builder.Services.AddScoped<IPasswordService, PasswordService>();
 builder.Services.AddScoped<IUserOrganizationAccessService, UserOrganizationAccessService>();
+builder.Services.AddScoped<IDocumentGeneratorService, DocumentGeneratorService>();
+builder.Services.AddScoped<IVariableResolverService, VariableResolverService>();
+builder.Services.AddScoped<ISendingService, SendingService>();
+builder.Services.Configure<BrevoOptions>(
+    builder.Configuration.GetSection(BrevoOptions.Section));
+
+builder.Services.AddScoped<IMailService, MailService>();
 builder.Services.Configure<MeranOptions>(builder.Configuration.GetSection("MeranOptions"));
 builder.Services.AddHttpClient("MeranOAuth", client =>
 {
