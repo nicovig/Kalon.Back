@@ -4,7 +4,6 @@ using Microsoft.Extensions.Options;
 
 namespace Kalon.Back.Tests;
 
-// Tests/MailServiceTests.cs
 public class MailServiceTests
 {
     private static IOptions<BrevoOptions> DefaultOptions() =>

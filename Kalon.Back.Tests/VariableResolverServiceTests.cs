@@ -1,12 +1,8 @@
 ﻿using Kalon.Back.Models;
 using Kalon.Back.Services.Mail;
-using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace Kalon.Back.Tests;
 
-// Tests/VariableResolverServiceTests.cs
 public class VariableResolverServiceTests
 {
     private readonly IVariableResolverService _resolver = new VariableResolverService();

@@ -6,6 +6,8 @@ using Kalon.Back.Services.OrganizationAccess;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
+namespace Kalon.Back.Tests;
+
 public class OrganizationDocumentsControllerTests
 {
     private static OrganizationDocumentsController CreateController(ApplicationDbContext dbContext) =>

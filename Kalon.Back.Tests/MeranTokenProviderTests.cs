@@ -2,7 +2,8 @@ using System.Net;
 using System.Text;
 using Kalon.Back.Services;
 using Microsoft.Extensions.Options;
-using Xunit;
+
+namespace Kalon.Back.Tests;
 
 public class MeranTokenProviderTests
 {

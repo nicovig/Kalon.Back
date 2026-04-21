@@ -6,6 +6,8 @@ using Kalon.Back.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
+namespace Kalon.Back.Tests;
+
 public class ContactControllerTests
 {
     private static ContactController CreateController(ApplicationDbContext dbContext) =>

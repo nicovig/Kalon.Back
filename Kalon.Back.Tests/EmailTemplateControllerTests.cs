@@ -6,6 +6,8 @@ using Kalon.Back.Services.OrganizationAccess;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
+namespace Kalon.Back.Tests;
+
 public class EmailTemplateControllerTests
 {
     private static EmailTemplateController CreateController(ApplicationDbContext dbContext) =>

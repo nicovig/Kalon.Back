@@ -1,5 +1,7 @@
 using Kalon.Back.Models;
 
+namespace Kalon.Back.Tests;
+
 public class GeneratedDocumentAndMailLogRulesTests
 {
     [Theory]

@@ -1,13 +1,9 @@
-using System;
 using System.Net;
-using System.Net.Http;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
-using Kalon.Back.Models;
 using Kalon.Back.Services;
 using Microsoft.Extensions.Options;
-using Xunit;
+
+namespace Kalon.Back.Tests;
 
 public sealed class FakeMeranTokenProvider : IMeranTokenProvider
 {

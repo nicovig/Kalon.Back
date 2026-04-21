@@ -10,6 +10,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 
+namespace Kalon.Back.Tests;
+
+
 public class AuthControllerTests
 {
     private sealed class FakePasswordService : IPasswordService

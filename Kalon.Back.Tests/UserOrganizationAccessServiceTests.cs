@@ -2,7 +2,8 @@ using Kalon.Back.Data;
 using Kalon.Back.Models;
 using Kalon.Back.Services.OrganizationAccess;
 using Microsoft.EntityFrameworkCore;
-using Xunit;
+
+namespace Kalon.Back.Tests;
 
 public class UserOrganizationAccessServiceTests
 {
