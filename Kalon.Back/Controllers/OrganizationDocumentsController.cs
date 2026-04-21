@@ -1,5 +1,6 @@
 using Kalon.Back.Data;
 using Kalon.Back.DTOs;
+using Kalon.Back.Models;
 using Kalon.Back.Services.OrganizationAccess;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
@@ -121,7 +122,7 @@ public class OrganizationDocumentsController(
     }
 
     [HttpGet("mail-logs")]
-    [ProducesResponseType(typeof(List<MailLogLightResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(List<MailLogListResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetMailLogs(CancellationToken cancellationToken)
@@ -140,14 +141,19 @@ public class OrganizationDocumentsController(
             .AsNoTracking()
             .Where(x => x.OrganizationId == organizationId)
             .OrderByDescending(x => x.CreatedAt)
-            .Select(x => new MailLogLightResponse
+            .Select(x => new MailLogListResponse
             {
-                Id = x.Id,
-                OrganizationId = x.OrganizationId,
-                ContactId = x.ContactId,
+                Type = x.GeneratedDocument != null ? x.GeneratedDocument.DocumentType : DocumentType.Message,
+                Date = x.CreatedAt,
                 IsEmail = x.IsEmail,
-                Status = x.Status,
-                CreatedAt = x.CreatedAt
+                SendAt = $"{x.Contact.Firstname} {x.Contact.Lastname}".Trim(),
+                Status = x.GeneratedDocument != null
+                    ? x.GeneratedDocument.Status
+                    : x.Status == MailLogStatuses.Error
+                        ? GeneratedDocumentStatuses.Error
+                        : x.Status == MailLogStatuses.Printed
+                            ? GeneratedDocumentStatuses.Generated
+                            : GeneratedDocumentStatuses.Sent
             })
             .ToListAsync(cancellationToken);
 

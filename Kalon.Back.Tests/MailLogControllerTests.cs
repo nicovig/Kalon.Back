@@ -231,9 +231,12 @@ public class OrganizationDocumentsControllerTests
         var result = await controller.GetMailLogs(CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
-        var payload = Assert.IsType<List<MailLogLightResponse>>(ok.Value);
+        var payload = Assert.IsType<List<MailLogListResponse>>(ok.Value);
         Assert.Single(payload);
-        Assert.Equal(contact.Id, payload[0].ContactId);
+        Assert.Equal(DocumentType.Message, payload[0].Type);
+        Assert.True(payload[0].IsEmail);
+        Assert.Equal("John Doe", payload[0].SendAt);
+        Assert.Equal(GeneratedDocumentStatuses.Sent, payload[0].Status);
     }
 
     [Fact]

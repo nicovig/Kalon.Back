@@ -41,6 +41,15 @@ public class MailLogLightResponse
     public DateTime CreatedAt { get; set; }
 }
 
+public class MailLogListResponse
+{
+    public string Type { get; set; } = string.Empty;
+    public DateTime Date { get; set; }
+    public bool IsEmail { get; set; }
+    public string SendAt { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+}
+
 public class MailLogDetailsResponse
 {
     public Guid Id { get; set; }
