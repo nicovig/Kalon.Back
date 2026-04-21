@@ -3,16 +3,21 @@ using Kalon.Back.Data;
 using Kalon.Back.Services;
 using Kalon.Back.Services.Mail;
 using Kalon.Back.Services.OrganizationAccess;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using QuestPDF.Infrastructure;
 using System.Collections.Generic;
+using System.Text;
 
 QuestPDF.Settings.License = LicenseType.Community;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.Configure<PasswordOptions>(builder.Configuration.GetSection("Password"));
+builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.Section));
 builder.Services.AddScoped<IPasswordService, PasswordService>();
+builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IUserOrganizationAccessService, UserOrganizationAccessService>();
 builder.Services.AddScoped<IDocumentGeneratorService, DocumentGeneratorService>();
 builder.Services.AddScoped<IVariableResolverService, VariableResolverService>();
@@ -31,6 +36,28 @@ builder.Services.AddHttpClient<MeranClient>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+var jwtOptions = builder.Configuration.GetSection(JwtOptions.Section).Get<JwtOptions>()
+    ?? throw new InvalidOperationException("Jwt configuration is missing.");
+if (string.IsNullOrWhiteSpace(jwtOptions.SigningKey))
+    throw new InvalidOperationException("Jwt:SigningKey is required.");
+
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateIssuerSigningKey = true,
+            ValidateLifetime = true,
+            ValidIssuer = jwtOptions.Issuer,
+            ValidAudience = jwtOptions.Audience,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SigningKey)),
+            ClockSkew = TimeSpan.FromMinutes(1)
+        };
+    });
 
 builder.Services.AddCors(options =>
 {
@@ -87,6 +114,7 @@ app.UseHttpsRedirection();
 
 app.UseCors();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();

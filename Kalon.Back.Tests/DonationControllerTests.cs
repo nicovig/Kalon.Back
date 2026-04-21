@@ -3,6 +3,8 @@ using Kalon.Back.Data;
 using Kalon.Back.DTOs;
 using Kalon.Back.Services.OrganizationAccess;
 using Kalon.Back.Models;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,6 +16,20 @@ public class DonationControllerTests
 
     private static DonationController CreateController(ApplicationDbContext dbContext) =>
         new(dbContext, new UserOrganizationAccessService(dbContext));
+
+    private static void SetAuthenticatedUser(ControllerBase controller, Guid userId)
+    {
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(
+                [
+                    new Claim("sub", userId.ToString())
+                ], "TestAuth"))
+            }
+        };
+    }
 
     private static ApplicationDbContext CreateDbContext(string dbName)
     {
@@ -98,6 +114,7 @@ public class DonationControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
         var request = new Donation
         {
             ContactId = contact.Id,
@@ -109,7 +126,7 @@ public class DonationControllerTests
             IsAnonymous = false
         };
 
-        var result = await controller.Create(userId, request, CancellationToken.None);
+        var result = await controller.Create(request, CancellationToken.None);
 
         var created = Assert.IsType<CreatedAtActionResult>(result);
         var payload = Assert.IsType<DonationResponse>(created.Value);
@@ -137,6 +154,7 @@ public class DonationControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
         var request = new Donation
         {
             ContactId = otherContact.Id,
@@ -145,7 +163,7 @@ public class DonationControllerTests
             DonationType = "financial"
         };
 
-        var result = await controller.Create(userId, request, CancellationToken.None);
+        var result = await controller.Create(request, CancellationToken.None);
 
         Assert.IsType<BadRequestObjectResult>(result);
     }
@@ -176,8 +194,8 @@ public class DonationControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
         var result = await controller.GetAll(
-            userId,
             null,
             null,
             null,
@@ -216,8 +234,8 @@ public class DonationControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
         var result = await controller.GetAll(
-            userId,
             null,
             null,
             null,
@@ -254,8 +272,8 @@ public class DonationControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
         var result = await controller.GetAll(
-            userId,
             null,
             null,
             "In_Kind",
@@ -284,8 +302,8 @@ public class DonationControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
         var result = await controller.GetAll(
-            userId,
             null,
             null,
             null,
@@ -311,7 +329,8 @@ public class DonationControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
-        var result = await controller.GetById(userId, Guid.NewGuid(), CancellationToken.None);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.GetById(Guid.NewGuid(), CancellationToken.None);
 
         Assert.IsType<NotFoundObjectResult>(result);
     }
@@ -351,7 +370,8 @@ public class DonationControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
-        var result = await controller.GetById(userId, donation.Id, CancellationToken.None);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.GetById(donation.Id, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
         var payload = Assert.IsType<DonationResponse>(ok.Value);
@@ -380,6 +400,7 @@ public class DonationControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
         var request = new Donation
         {
             ContactId = contact.Id,
@@ -391,7 +412,7 @@ public class DonationControllerTests
             IsAnonymous = true
         };
 
-        var result = await controller.Update(userId, donation.Id, request, CancellationToken.None);
+        var result = await controller.Update(donation.Id, request, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
         var payload = Assert.IsType<DonationResponse>(ok.Value);

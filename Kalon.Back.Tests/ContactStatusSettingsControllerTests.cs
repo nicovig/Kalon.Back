@@ -3,6 +3,8 @@ using Kalon.Back.Data;
 using Kalon.Back.DTOs;
 using Kalon.Back.Models;
 using Kalon.Back.Services.OrganizationAccess;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,6 +14,20 @@ public class ContactStatusSettingsControllerTests
 {
     private static ContactStatusSettingsController CreateController(ApplicationDbContext dbContext) =>
         new(dbContext, new UserOrganizationAccessService(dbContext));
+
+    private static void SetAuthenticatedUser(ControllerBase controller, Guid userId)
+    {
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(
+                [
+                    new Claim("sub", userId.ToString())
+                ], "TestAuth"))
+            }
+        };
+    }
 
     private static ApplicationDbContext CreateDbContext(string dbName)
     {
@@ -59,7 +75,7 @@ public class ContactStatusSettingsControllerTests
         using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
         var controller = CreateController(dbContext);
 
-        var result = await controller.Get(Guid.Empty, CancellationToken.None);
+        var result = await controller.Get(CancellationToken.None);
 
         var badRequest = Assert.IsType<BadRequestObjectResult>(result);
         Assert.Equal(400, badRequest.StatusCode);
@@ -69,9 +85,11 @@ public class ContactStatusSettingsControllerTests
     public async Task Get_ReturnsNotFound_WhenOrganizationDoesNotExistForUser()
     {
         using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var userId = Guid.NewGuid();
         var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
 
-        var result = await controller.Get(Guid.NewGuid(), CancellationToken.None);
+        var result = await controller.Get(CancellationToken.None);
 
         var notFound = Assert.IsType<NotFoundObjectResult>(result);
         Assert.Equal(404, notFound.StatusCode);
@@ -89,7 +107,8 @@ public class ContactStatusSettingsControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
-        var result = await controller.Get(userId, CancellationToken.None);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.Get(CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
         var payload = Assert.IsType<ContactStatusSettings>(ok.Value);
@@ -110,7 +129,8 @@ public class ContactStatusSettingsControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
-        var result = await controller.Upsert(userId, new ContactStatusSettingsUpsertRequest
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.Upsert(new ContactStatusSettingsUpsertRequest
         {
             NewDurationDays = 20,
             ToRemindAfterMonths = 10,
@@ -136,7 +156,8 @@ public class ContactStatusSettingsControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
-        var result = await controller.Upsert(userId, new ContactStatusSettingsUpsertRequest
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.Upsert(new ContactStatusSettingsUpsertRequest
         {
             NewDurationDays = 30,
             ToRemindAfterMonths = 24,
@@ -168,7 +189,8 @@ public class ContactStatusSettingsControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
-        var result = await controller.ResetToDefaults(userId, CancellationToken.None);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.ResetToDefaults(CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
         var payload = Assert.IsType<ContactStatusSettings>(ok.Value);

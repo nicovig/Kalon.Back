@@ -4,11 +4,13 @@ using Kalon.Back.Models;
 using Kalon.Back.Services.Mail;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace Kalon.Back.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Roles = "organization_master")]
 public class SendingController : ControllerBase
 {
     private readonly ISendingService _sendingService;
@@ -71,8 +73,9 @@ public class SendingController : ControllerBase
 
     private Guid GetOrganizationId()
     {
-        // à adapter selon comment tu récupères l'orgId dans ton JWT
         var claim = User.FindFirst("organization_id")?.Value;
-        return Guid.Parse(claim!);
+        if (claim is null || !Guid.TryParse(claim, out var organizationId))
+            throw new UnauthorizedAccessException("organization_id claim is missing.");
+        return organizationId;
     }
 }

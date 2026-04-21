@@ -1,6 +1,8 @@
 using Kalon.Back.Data;
 using Kalon.Back.DTOs;
 using Kalon.Back.Services.OrganizationAccess;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,6 +10,7 @@ namespace Kalon.Back.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Roles = "organization_master")]
 public class OrganizationDocumentsController(
     ApplicationDbContext dbContext,
     IUserOrganizationAccessService userOrganizationAccess) : ControllerBase
@@ -16,9 +19,13 @@ public class OrganizationDocumentsController(
     [ProducesResponseType(typeof(List<GeneratedDocumentLightResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetGeneratedDocuments([FromQuery] Guid userId, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetGeneratedDocuments(CancellationToken cancellationToken)
     {
-        var access = await userOrganizationAccess.ResolveAsync(userId, cancellationToken);
+        var userId = ResolveUserIdFromJwt();
+        if (userId is null)
+            return BadRequest(new ApiMessageResponse { Message = "userId is required." });
+
+        var access = await userOrganizationAccess.ResolveAsync(userId.Value, cancellationToken);
         var resolved = access.ToActionResult();
         if (!resolved.Success)
             return resolved.Error!;
@@ -47,10 +54,14 @@ public class OrganizationDocumentsController(
     [ProducesResponseType(typeof(GeneratedDocumentDetailsResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetGeneratedDocumentById([FromQuery] Guid userId, [FromRoute] Guid id,
+    public async Task<IActionResult> GetGeneratedDocumentById([FromRoute] Guid id,
         [FromQuery] bool light = true, CancellationToken cancellationToken = default)
     {
-        var access = await userOrganizationAccess.ResolveAsync(userId, cancellationToken);
+        var userId = ResolveUserIdFromJwt();
+        if (userId is null)
+            return BadRequest(new ApiMessageResponse { Message = "userId is required." });
+
+        var access = await userOrganizationAccess.ResolveAsync(userId.Value, cancellationToken);
         var resolved = access.ToActionResult();
         if (!resolved.Success)
             return resolved.Error!;
@@ -113,9 +124,13 @@ public class OrganizationDocumentsController(
     [ProducesResponseType(typeof(List<MailLogLightResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetMailLogs([FromQuery] Guid userId, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetMailLogs(CancellationToken cancellationToken)
     {
-        var access = await userOrganizationAccess.ResolveAsync(userId, cancellationToken);
+        var userId = ResolveUserIdFromJwt();
+        if (userId is null)
+            return BadRequest(new ApiMessageResponse { Message = "userId is required." });
+
+        var access = await userOrganizationAccess.ResolveAsync(userId.Value, cancellationToken);
         var resolved = access.ToActionResult();
         if (!resolved.Success)
             return resolved.Error!;
@@ -144,10 +159,14 @@ public class OrganizationDocumentsController(
     [ProducesResponseType(typeof(MailLogDetailsResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetMailLogById([FromQuery] Guid userId, [FromRoute] Guid id,
+    public async Task<IActionResult> GetMailLogById([FromRoute] Guid id,
         [FromQuery] bool light = true, CancellationToken cancellationToken = default)
     {
-        var access = await userOrganizationAccess.ResolveAsync(userId, cancellationToken);
+        var userId = ResolveUserIdFromJwt();
+        if (userId is null)
+            return BadRequest(new ApiMessageResponse { Message = "userId is required." });
+
+        var access = await userOrganizationAccess.ResolveAsync(userId.Value, cancellationToken);
         var resolved = access.ToActionResult();
         if (!resolved.Success)
             return resolved.Error!;
@@ -201,6 +220,17 @@ public class OrganizationDocumentsController(
             return NotFound(new ApiMessageResponse { Message = "Mail log not found." });
 
         return Ok(detailedResult);
+    }
+
+    private Guid? ResolveUserIdFromJwt()
+    {
+        var principal = HttpContext?.User;
+        if (principal is null)
+            return null;
+
+        var claimValue = principal.FindFirstValue(ClaimTypes.NameIdentifier)
+                         ?? principal.FindFirstValue("sub");
+        return Guid.TryParse(claimValue, out var parsed) ? parsed : null;
     }
 }
 

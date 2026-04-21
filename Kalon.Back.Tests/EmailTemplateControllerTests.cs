@@ -3,6 +3,8 @@ using Kalon.Back.Data;
 using Kalon.Back.DTOs;
 using Kalon.Back.Models;
 using Kalon.Back.Services.OrganizationAccess;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,6 +14,20 @@ public class EmailTemplateControllerTests
 {
     private static EmailTemplateController CreateController(ApplicationDbContext dbContext) =>
         new(dbContext, new UserOrganizationAccessService(dbContext));
+
+    private static void SetAuthenticatedUser(ControllerBase controller, Guid userId)
+    {
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(
+                [
+                    new Claim("sub", userId.ToString())
+                ], "TestAuth"))
+            }
+        };
+    }
 
     private static ApplicationDbContext CreateDbContext(string dbName)
     {
@@ -65,6 +81,7 @@ public class EmailTemplateControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
         var request = new EmailTemplateUpsertRequest
         {
             Name = "Reminder #1",
@@ -73,7 +90,7 @@ public class EmailTemplateControllerTests
             EmailTemplateType = EmailTemplateTypes.Reminder
         };
 
-        var result = await controller.Create(userId, request, CancellationToken.None);
+        var result = await controller.Create(request, CancellationToken.None);
 
         var created = Assert.IsType<CreatedAtActionResult>(result);
         var payload = Assert.IsType<EmailTemplateResponse>(created.Value);
@@ -93,6 +110,7 @@ public class EmailTemplateControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
         var request = new EmailTemplateUpsertRequest
         {
             Name = "Invalid",
@@ -101,7 +119,7 @@ public class EmailTemplateControllerTests
             EmailTemplateType = "not_valid"
         };
 
-        var result = await controller.Create(userId, request, CancellationToken.None);
+        var result = await controller.Create(request, CancellationToken.None);
 
         Assert.IsType<BadRequestObjectResult>(result);
     }
@@ -145,7 +163,8 @@ public class EmailTemplateControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
-        var result = await controller.GetAll(userId, CancellationToken.None);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.GetAll(CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
         var payload = Assert.IsType<List<EmailTemplateResponse>>(ok.Value);
@@ -165,7 +184,8 @@ public class EmailTemplateControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
-        var result = await controller.GetById(userId, Guid.NewGuid(), CancellationToken.None);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.GetById(Guid.NewGuid(), CancellationToken.None);
 
         Assert.IsType<NotFoundObjectResult>(result);
     }
@@ -195,6 +215,7 @@ public class EmailTemplateControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
         var request = new EmailTemplateUpsertRequest
         {
             Name = "After",
@@ -203,7 +224,7 @@ public class EmailTemplateControllerTests
             EmailTemplateType = EmailTemplateTypes.Seasonal
         };
 
-        var result = await controller.Update(userId, template.Id, request, CancellationToken.None);
+        var result = await controller.Update(template.Id, request, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
         var payload = Assert.IsType<EmailTemplateResponse>(ok.Value);
@@ -237,7 +258,8 @@ public class EmailTemplateControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
-        var result = await controller.Delete(userId, template.Id, CancellationToken.None);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.Delete(template.Id, CancellationToken.None);
 
         Assert.IsType<NoContentResult>(result);
         var exists = await dbContext.EmailTemplates.AnyAsync(x => x.Id == template.Id);

@@ -12,7 +12,6 @@ public interface IMailService
     Task SendAsync(MailMessageDto message);
 }
 
-// Services/Mail/MailService.cs
 public class MailService : IMailService
 {
     private readonly BrevoOptions _options;

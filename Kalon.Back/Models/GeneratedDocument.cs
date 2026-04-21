@@ -82,15 +82,17 @@ public static class DocumentType
 {
     public const string Cerfa11580 = "cerfa_11580";
     public const string Cerfa16216 = "cerfa_16216";
-    public const string MembershipCertificate = "membership_certificate";
     public const string PaymentAttestation = "payment_attestation";
+    public const string MembershipCertificate = "membership_certificate";
+    public const string Message = "message";
 
     public static readonly IReadOnlyList<string> All = new[]
     {
         Cerfa11580,
         Cerfa16216,
+        PaymentAttestation,
         MembershipCertificate,
-        PaymentAttestation
+        Message,
     };
 
     public static bool IsValid(string? value) =>

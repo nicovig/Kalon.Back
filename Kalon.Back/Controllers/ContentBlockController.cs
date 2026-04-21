@@ -2,6 +2,8 @@ using Kalon.Back.Data;
 using Kalon.Back.DTOs;
 using Kalon.Back.Models;
 using Kalon.Back.Services.OrganizationAccess;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,6 +11,7 @@ namespace Kalon.Back.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Roles = "organization_master")]
 public class OrganizationCustomContentController(
     ApplicationDbContext dbContext,
     IUserOrganizationAccessService userOrganizationAccess) : ControllerBase
@@ -24,10 +27,14 @@ public class OrganizationCustomContentController(
     [ProducesResponseType(typeof(ContentBlockResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> CreateContentBlock([FromQuery] Guid userId, [FromBody] ContentBlockUpsertRequest request,
+    public async Task<IActionResult> CreateContentBlock([FromBody] ContentBlockUpsertRequest request,
         CancellationToken cancellationToken)
     {
-        var access = await userOrganizationAccess.ResolveAsync(userId, cancellationToken);
+        var userId = ResolveUserIdFromJwt();
+        if (userId is null)
+            return BadRequest(new ApiMessageResponse { Message = "userId is required." });
+
+        var access = await userOrganizationAccess.ResolveAsync(userId.Value, cancellationToken);
         var resolved = access.ToActionResult();
         if (!resolved.Success)
             return resolved.Error!;
@@ -49,16 +56,20 @@ public class OrganizationCustomContentController(
         await dbContext.SaveChangesAsync(cancellationToken);
 
         var result = await ProjectAsync(block.Id, organizationId, cancellationToken);
-        return CreatedAtAction(nameof(GetContentBlockById), new { userId, id = block.Id }, result);
+        return CreatedAtAction(nameof(GetContentBlockById), new { id = block.Id }, result);
     }
 
     [HttpGet("content-blocks")]
     [ProducesResponseType(typeof(List<ContentBlockResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetContentBlocks([FromQuery] Guid userId, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetContentBlocks(CancellationToken cancellationToken)
     {
-        var access = await userOrganizationAccess.ResolveAsync(userId, cancellationToken);
+        var userId = ResolveUserIdFromJwt();
+        if (userId is null)
+            return BadRequest(new ApiMessageResponse { Message = "userId is required." });
+
+        var access = await userOrganizationAccess.ResolveAsync(userId.Value, cancellationToken);
         var resolved = access.ToActionResult();
         if (!resolved.Success)
             return resolved.Error!;
@@ -92,10 +103,14 @@ public class OrganizationCustomContentController(
     [ProducesResponseType(typeof(ContentBlockResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetContentBlockById([FromQuery] Guid userId, [FromRoute] Guid id,
+    public async Task<IActionResult> GetContentBlockById([FromRoute] Guid id,
         CancellationToken cancellationToken)
     {
-        var access = await userOrganizationAccess.ResolveAsync(userId, cancellationToken);
+        var userId = ResolveUserIdFromJwt();
+        if (userId is null)
+            return BadRequest(new ApiMessageResponse { Message = "userId is required." });
+
+        var access = await userOrganizationAccess.ResolveAsync(userId.Value, cancellationToken);
         var resolved = access.ToActionResult();
         if (!resolved.Success)
             return resolved.Error!;
@@ -112,10 +127,14 @@ public class OrganizationCustomContentController(
     [ProducesResponseType(typeof(ContentBlockResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UpdateContentBlock([FromQuery] Guid userId, [FromRoute] Guid id,
+    public async Task<IActionResult> UpdateContentBlock([FromRoute] Guid id,
         [FromBody] ContentBlockUpsertRequest request, CancellationToken cancellationToken)
     {
-        var access = await userOrganizationAccess.ResolveAsync(userId, cancellationToken);
+        var userId = ResolveUserIdFromJwt();
+        if (userId is null)
+            return BadRequest(new ApiMessageResponse { Message = "userId is required." });
+
+        var access = await userOrganizationAccess.ResolveAsync(userId.Value, cancellationToken);
         var resolved = access.ToActionResult();
         if (!resolved.Success)
             return resolved.Error!;
@@ -142,10 +161,14 @@ public class OrganizationCustomContentController(
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> DeleteContentBlock([FromQuery] Guid userId, [FromRoute] Guid id,
+    public async Task<IActionResult> DeleteContentBlock([FromRoute] Guid id,
         CancellationToken cancellationToken)
     {
-        var access = await userOrganizationAccess.ResolveAsync(userId, cancellationToken);
+        var userId = ResolveUserIdFromJwt();
+        if (userId is null)
+            return BadRequest(new ApiMessageResponse { Message = "userId is required." });
+
+        var access = await userOrganizationAccess.ResolveAsync(userId.Value, cancellationToken);
         var resolved = access.ToActionResult();
         if (!resolved.Success)
             return resolved.Error!;
@@ -165,9 +188,13 @@ public class OrganizationCustomContentController(
     [ProducesResponseType(typeof(OrganizationLogoResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetOrganizationLogo([FromQuery] Guid userId, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetOrganizationLogo(CancellationToken cancellationToken)
     {
-        var access = await userOrganizationAccess.ResolveAsync(userId, cancellationToken);
+        var userId = ResolveUserIdFromJwt();
+        if (userId is null)
+            return BadRequest(new ApiMessageResponse { Message = "userId is required." });
+
+        var access = await userOrganizationAccess.ResolveAsync(userId.Value, cancellationToken);
         var resolved = access.ToActionResult();
         if (!resolved.Success)
             return resolved.Error!;
@@ -184,10 +211,14 @@ public class OrganizationCustomContentController(
     [ProducesResponseType(typeof(OrganizationLogoResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> CreateOrganizationLogo([FromQuery] Guid userId,
+    public async Task<IActionResult> CreateOrganizationLogo(
         [FromBody] OrganizationLogoUpsertRequest request, CancellationToken cancellationToken)
     {
-        var access = await userOrganizationAccess.ResolveAsync(userId, cancellationToken);
+        var userId = ResolveUserIdFromJwt();
+        if (userId is null)
+            return BadRequest(new ApiMessageResponse { Message = "userId is required." });
+
+        var access = await userOrganizationAccess.ResolveAsync(userId.Value, cancellationToken);
         var resolved = access.ToActionResult();
         if (!resolved.Success)
             return resolved.Error!;
@@ -214,17 +245,21 @@ public class OrganizationCustomContentController(
         await dbContext.SaveChangesAsync(cancellationToken);
 
         var result = await ProjectLogoAsync(organizationId, cancellationToken);
-        return CreatedAtAction(nameof(GetOrganizationLogo), new { userId }, result);
+        return CreatedAtAction(nameof(GetOrganizationLogo), null, result);
     }
 
     [HttpPut("logo")]
     [ProducesResponseType(typeof(OrganizationLogoResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UpdateOrganizationLogo([FromQuery] Guid userId,
+    public async Task<IActionResult> UpdateOrganizationLogo(
         [FromBody] OrganizationLogoUpsertRequest request, CancellationToken cancellationToken)
     {
-        var access = await userOrganizationAccess.ResolveAsync(userId, cancellationToken);
+        var userId = ResolveUserIdFromJwt();
+        if (userId is null)
+            return BadRequest(new ApiMessageResponse { Message = "userId is required." });
+
+        var access = await userOrganizationAccess.ResolveAsync(userId.Value, cancellationToken);
         var resolved = access.ToActionResult();
         if (!resolved.Success)
             return resolved.Error!;
@@ -251,9 +286,13 @@ public class OrganizationCustomContentController(
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> DeleteOrganizationLogo([FromQuery] Guid userId, CancellationToken cancellationToken)
+    public async Task<IActionResult> DeleteOrganizationLogo(CancellationToken cancellationToken)
     {
-        var access = await userOrganizationAccess.ResolveAsync(userId, cancellationToken);
+        var userId = ResolveUserIdFromJwt();
+        if (userId is null)
+            return BadRequest(new ApiMessageResponse { Message = "userId is required." });
+
+        var access = await userOrganizationAccess.ResolveAsync(userId.Value, cancellationToken);
         var resolved = access.ToActionResult();
         if (!resolved.Success)
             return resolved.Error!;
@@ -358,5 +397,16 @@ public class OrganizationCustomContentController(
                 UpdatedAt = x.UpdatedAt
             })
             .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    private Guid? ResolveUserIdFromJwt()
+    {
+        var principal = HttpContext?.User;
+        if (principal is null)
+            return null;
+
+        var claimValue = principal.FindFirstValue(ClaimTypes.NameIdentifier)
+                         ?? principal.FindFirstValue("sub");
+        return Guid.TryParse(claimValue, out var parsed) ? parsed : null;
     }
 }

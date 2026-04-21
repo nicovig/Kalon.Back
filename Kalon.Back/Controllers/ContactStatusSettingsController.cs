@@ -2,6 +2,8 @@ using Kalon.Back.Data;
 using Kalon.Back.DTOs;
 using Kalon.Back.Models;
 using Kalon.Back.Services.OrganizationAccess;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,6 +11,7 @@ namespace Kalon.Back.Controllers;
 
 [ApiController]
 [Route("api/contact-status-settings")]
+[Authorize(Roles = "organization_master")]
 public class ContactStatusSettingsController(
     ApplicationDbContext dbContext,
     IUserOrganizationAccessService userOrganizationAccess) : ControllerBase
@@ -21,9 +24,13 @@ public class ContactStatusSettingsController(
     [ProducesResponseType(typeof(ContactStatusSettings), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Get([FromQuery] Guid userId, CancellationToken cancellationToken)
+    public async Task<IActionResult> Get(CancellationToken cancellationToken)
     {
-        var access = await userOrganizationAccess.ResolveAsync(userId, cancellationToken);
+        var userId = ResolveUserIdFromJwt();
+        if (userId is null)
+            return BadRequest(new ApiMessageResponse { Message = "userId is required." });
+
+        var access = await userOrganizationAccess.ResolveAsync(userId.Value, cancellationToken);
         var resolved = access.ToActionResult();
         if (!resolved.Success)
             return resolved.Error!;
@@ -43,14 +50,18 @@ public class ContactStatusSettingsController(
     [ProducesResponseType(typeof(ContactStatusSettings), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Upsert([FromQuery] Guid userId, [FromBody] ContactStatusSettingsUpsertRequest request,
+    public async Task<IActionResult> Upsert([FromBody] ContactStatusSettingsUpsertRequest request,
         CancellationToken cancellationToken)
     {
         var validationError = Validate(request);
         if (validationError is not null)
             return BadRequest(new ApiMessageResponse { Message = validationError });
 
-        var access = await userOrganizationAccess.ResolveAsync(userId, cancellationToken);
+        var userId = ResolveUserIdFromJwt();
+        if (userId is null)
+            return BadRequest(new ApiMessageResponse { Message = "userId is required." });
+
+        var access = await userOrganizationAccess.ResolveAsync(userId.Value, cancellationToken);
         var resolved = access.ToActionResult();
         if (!resolved.Success)
             return resolved.Error!;
@@ -86,9 +97,13 @@ public class ContactStatusSettingsController(
     [ProducesResponseType(typeof(ContactStatusSettings), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> ResetToDefaults([FromQuery] Guid userId, CancellationToken cancellationToken)
+    public async Task<IActionResult> ResetToDefaults(CancellationToken cancellationToken)
     {
-        var access = await userOrganizationAccess.ResolveAsync(userId, cancellationToken);
+        var userId = ResolveUserIdFromJwt();
+        if (userId is null)
+            return BadRequest(new ApiMessageResponse { Message = "userId is required." });
+
+        var access = await userOrganizationAccess.ResolveAsync(userId.Value, cancellationToken);
         var resolved = access.ToActionResult();
         if (!resolved.Success)
             return resolved.Error!;
@@ -139,5 +154,16 @@ public class ContactStatusSettingsController(
         if (request.InactiveAfterMonths < request.ToRemindAfterMonths)
             return "InactiveAfterMonths must be greater than or equal to ToRemindAfterMonths.";
         return null;
+    }
+
+    private Guid? ResolveUserIdFromJwt()
+    {
+        var principal = HttpContext?.User;
+        if (principal is null)
+            return null;
+
+        var claimValue = principal.FindFirstValue(ClaimTypes.NameIdentifier)
+                         ?? principal.FindFirstValue("sub");
+        return Guid.TryParse(claimValue, out var parsed) ? parsed : null;
     }
 }

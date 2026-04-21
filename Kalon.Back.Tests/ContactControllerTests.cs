@@ -3,6 +3,8 @@ using Kalon.Back.Data;
 using Kalon.Back.DTOs;
 using Kalon.Back.Services.OrganizationAccess;
 using Kalon.Back.Models;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,6 +14,20 @@ public class ContactControllerTests
 {
     private static ContactController CreateController(ApplicationDbContext dbContext) =>
         new(dbContext, new UserOrganizationAccessService(dbContext));
+
+    private static void SetAuthenticatedUser(ControllerBase controller, Guid userId)
+    {
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(
+                [
+                    new Claim("sub", userId.ToString())
+                ], "TestAuth"))
+            }
+        };
+    }
 
     private static ApplicationDbContext CreateDbContext(string dbName)
     {
@@ -73,7 +89,7 @@ public class ContactControllerTests
         using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
         var controller = CreateController(dbContext);
 
-        var result = await controller.GetAll(Guid.Empty, CancellationToken.None);
+        var result = await controller.GetAll(CancellationToken.None);
 
         var badRequest = Assert.IsType<BadRequestObjectResult>(result);
         Assert.Equal(400, badRequest.StatusCode);
@@ -91,6 +107,7 @@ public class ContactControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
         var request = new Contact
         {
             Kind = ContactKinds.Donor,
@@ -99,7 +116,7 @@ public class ContactControllerTests
             Email = "new.contact@example.com"
         };
 
-        var result = await controller.Create(userId, request, CancellationToken.None);
+        var result = await controller.Create(request, CancellationToken.None);
 
         var created = Assert.IsType<CreatedAtActionResult>(result);
         var payload = Assert.IsType<ContactResponse>(created.Value);
@@ -119,7 +136,8 @@ public class ContactControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
-        var result = await controller.GetById(userId, Guid.NewGuid(), CancellationToken.None);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.GetById(Guid.NewGuid(), CancellationToken.None);
 
         Assert.IsType<NotFoundObjectResult>(result);
     }
@@ -139,7 +157,8 @@ public class ContactControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
-        var result = await controller.GetById(userId, contact.Id, CancellationToken.None);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.GetById(contact.Id, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
         var payload = Assert.IsType<ContactResponse>(ok.Value);
@@ -168,6 +187,7 @@ public class ContactControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
         var request = new Contact
         {
             Kind = ContactKinds.Member,
@@ -176,7 +196,7 @@ public class ContactControllerTests
             Email = "after@example.com"
         };
 
-        var result = await controller.Update(userId, contact.Id, request, CancellationToken.None);
+        var result = await controller.Update(contact.Id, request, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
         var payload = Assert.IsType<ContactResponse>(ok.Value);
@@ -199,6 +219,7 @@ public class ContactControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
         var request = new Contact
         {
             Kind = "invalid_kind",
@@ -206,7 +227,7 @@ public class ContactControllerTests
             Lastname = "Updated"
         };
 
-        var result = await controller.Update(userId, contact.Id, request, CancellationToken.None);
+        var result = await controller.Update(contact.Id, request, CancellationToken.None);
 
         Assert.IsType<BadRequestObjectResult>(result);
     }
@@ -215,9 +236,10 @@ public class ContactControllerTests
     public async Task GetAll_ReturnsNotFound_WhenOrganizationDoesNotExistForUser()
     {
         using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var userId = Guid.NewGuid();
         var controller = CreateController(dbContext);
-
-        var result = await controller.GetAll(Guid.NewGuid(), CancellationToken.None);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.GetAll(CancellationToken.None);
 
         var notFound = Assert.IsType<NotFoundObjectResult>(result);
         Assert.Equal(404, notFound.StatusCode);
@@ -246,8 +268,9 @@ public class ContactControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
 
-        var result = await controller.GetAll(userId, CancellationToken.None);
+        var result = await controller.GetAll(CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
         var payload = Assert.IsAssignableFrom<IEnumerable<ContactResponse>>(ok.Value);
@@ -298,7 +321,8 @@ public class ContactControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
-        var result = await controller.GetById(userId, contact.Id, CancellationToken.None);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.GetById(contact.Id, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
         var payload = Assert.IsType<ContactResponse>(ok.Value);
@@ -347,7 +371,8 @@ public class ContactControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
-        var result = await controller.GetAll(userId, CancellationToken.None);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.GetAll(CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
         var payload = Assert.IsAssignableFrom<IEnumerable<ContactResponse>>(ok.Value);

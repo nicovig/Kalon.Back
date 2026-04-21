@@ -1,5 +1,8 @@
 using System.Net;
+using System.IdentityModel.Tokens.Jwt;
 using System.Text;
+using System.Security.Claims;
+using Kalon.Back.Configuration;
 using Kalon.Back.Controllers;
 using Kalon.Back.Data;
 using Kalon.Back.DTOs;
@@ -68,10 +71,23 @@ public class AuthControllerTests
         return new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Application:ApplicationId"] = "356c9115-ca1e-4fd7-aa89-d6b07ade1530"
+                ["Application:ApplicationId"] = "356c9115-ca1e-4fd7-aa89-d6b07ade1530",
+                ["Jwt:Issuer"] = "Kalon.Back.Tests",
+                ["Jwt:Audience"] = "Kalon.Front.Tests",
+                ["Jwt:SigningKey"] = "Kalon_Back_Tests_Jwt_Signing_Key_At_Least_32_Chars",
+                ["Jwt:ExpirationMinutes"] = "60"
             })
             .Build();
     }
+
+    private static IJwtTokenService CreateJwtTokenService() =>
+        new JwtTokenService(Options.Create(new JwtOptions
+        {
+            Issuer = "Kalon.Back.Tests",
+            Audience = "Kalon.Front.Tests",
+            SigningKey = "Kalon_Back_Tests_Jwt_Signing_Key_At_Least_32_Chars",
+            ExpirationMinutes = 60
+        }));
 
     private static Organization CreateOrganization(Guid id, Guid userId, User user)
     {
@@ -115,7 +131,7 @@ public class AuthControllerTests
             httpClient,
             Options.Create(new MeranOptions { BaseUrl = "http://meran.local" }),
             new FixedTokenProvider());
-        var controller = new AuthController(dbContext, new FakePasswordService(true), meranClient, CreateConfiguration());
+        var controller = new AuthController(dbContext, new FakePasswordService(true), meranClient, CreateConfiguration(), CreateJwtTokenService());
 
         var result = await controller.Login(new LoginRequest { Email = "john@doe.com", Password = "pwd" }, CancellationToken.None);
 
@@ -124,6 +140,11 @@ public class AuthControllerTests
         Assert.True(payload.Meran.IsActive);
         Assert.Equal("basic", payload.Meran.Plan);
         Assert.Equal("john@doe.com", payload.User.Email);
+        Assert.Equal("organization_master", payload.User.Role);
+
+        var jwt = new JwtSecurityTokenHandler().ReadJwtToken(payload.Token);
+        Assert.Contains(jwt.Claims, c => c.Type == "organization_id");
+        Assert.Contains(jwt.Claims, c => c.Type == ClaimTypes.Role && c.Value == "organization_master");
     }
 
     [Fact]
@@ -151,7 +172,7 @@ public class AuthControllerTests
             httpClient,
             Options.Create(new MeranOptions { BaseUrl = "http://meran.local" }),
             new FixedTokenProvider());
-        var controller = new AuthController(dbContext, new FakePasswordService(false), meranClient, CreateConfiguration());
+        var controller = new AuthController(dbContext, new FakePasswordService(false), meranClient, CreateConfiguration(), CreateJwtTokenService());
 
         var result = await controller.Login(new LoginRequest { Email = "john@doe.com", Password = "bad" }, CancellationToken.None);
 
@@ -183,7 +204,7 @@ public class AuthControllerTests
             httpClient,
             Options.Create(new MeranOptions { BaseUrl = "http://meran.local" }),
             new FixedTokenProvider());
-        var controller = new AuthController(dbContext, new FakePasswordService(true), meranClient, CreateConfiguration());
+        var controller = new AuthController(dbContext, new FakePasswordService(true), meranClient, CreateConfiguration(), CreateJwtTokenService());
 
         var result = await controller.Login(new LoginRequest { Email = "john@doe.com", Password = "pwd" }, CancellationToken.None);
 

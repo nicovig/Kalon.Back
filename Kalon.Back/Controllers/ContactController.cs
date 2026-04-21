@@ -2,6 +2,8 @@ using Kalon.Back.Data;
 using Kalon.Back.DTOs;
 using Kalon.Back.Models;
 using Kalon.Back.Services.OrganizationAccess;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,6 +11,7 @@ namespace Kalon.Back.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Roles = "organization_master")]
 public class ContactController(ApplicationDbContext dbContext, IUserOrganizationAccessService userOrganizationAccess)
     : ControllerBase
 {
@@ -16,10 +19,14 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
     [ProducesResponseType(typeof(ContactResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Create([FromQuery] Guid userId, [FromBody] Contact request,
+    public async Task<IActionResult> Create([FromBody] Contact request,
         CancellationToken cancellationToken)
     {
-        var access = await userOrganizationAccess.ResolveAsync(userId, cancellationToken);
+        var userId = ResolveUserIdFromJwt();
+        if (userId is null)
+            return BadRequest(new ApiMessageResponse { Message = "userId is required." });
+
+        var access = await userOrganizationAccess.ResolveAsync(userId.Value, cancellationToken);
         var resolved = access.ToActionResult();
         if (!resolved.Success)
             return resolved.Error!;
@@ -45,16 +52,20 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
             .Where(c => c.OrganizationId == organizationId && c.Id == contact.Id)
             .FirstAsync(cancellationToken);
 
-        return CreatedAtAction(nameof(GetById), new { userId, id = contact.Id }, result);
+        return CreatedAtAction(nameof(GetById), new { id = contact.Id }, result);
     }
 
     [HttpGet]
     [ProducesResponseType(typeof(List<ContactResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetAll([FromQuery] Guid userId, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
     {
-        var access = await userOrganizationAccess.ResolveAsync(userId, cancellationToken);
+        var userId = ResolveUserIdFromJwt();
+        if (userId is null)
+            return BadRequest(new ApiMessageResponse { Message = "userId is required." });
+
+        var access = await userOrganizationAccess.ResolveAsync(userId.Value, cancellationToken);
         var resolved = access.ToActionResult();
         if (!resolved.Success)
             return resolved.Error!;
@@ -73,10 +84,14 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
     [ProducesResponseType(typeof(ContactResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetById([FromQuery] Guid userId, [FromRoute] Guid id,
+    public async Task<IActionResult> GetById([FromRoute] Guid id,
         CancellationToken cancellationToken)
     {
-        var access = await userOrganizationAccess.ResolveAsync(userId, cancellationToken);
+        var userId = ResolveUserIdFromJwt();
+        if (userId is null)
+            return BadRequest(new ApiMessageResponse { Message = "userId is required." });
+
+        var access = await userOrganizationAccess.ResolveAsync(userId.Value, cancellationToken);
         var resolved = access.ToActionResult();
         if (!resolved.Success)
             return resolved.Error!;
@@ -97,10 +112,14 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
     [ProducesResponseType(typeof(ContactResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Update([FromQuery] Guid userId, [FromRoute] Guid id,
+    public async Task<IActionResult> Update([FromRoute] Guid id,
         [FromBody] Contact request, CancellationToken cancellationToken)
     {
-        var access = await userOrganizationAccess.ResolveAsync(userId, cancellationToken);
+        var userId = ResolveUserIdFromJwt();
+        if (userId is null)
+            return BadRequest(new ApiMessageResponse { Message = "userId is required." });
+
+        var access = await userOrganizationAccess.ResolveAsync(userId.Value, cancellationToken);
         var resolved = access.ToActionResult();
         if (!resolved.Success)
             return resolved.Error!;
@@ -216,5 +235,16 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
                 AverageDonationAmount = c.Donations.Average(d => (decimal?)d.Amount) ?? 0m,
                 DonationCount = c.Donations.Count()
             });
+    }
+
+    private Guid? ResolveUserIdFromJwt()
+    {
+        var principal = HttpContext?.User;
+        if (principal is null)
+            return null;
+
+        var claimValue = principal.FindFirstValue(ClaimTypes.NameIdentifier)
+                         ?? principal.FindFirstValue("sub");
+        return Guid.TryParse(claimValue, out var parsed) ? parsed : null;
     }
 }

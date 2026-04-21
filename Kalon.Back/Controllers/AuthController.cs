@@ -1,6 +1,7 @@
 using Kalon.Back.Data;
 using Kalon.Back.DTOs;
 using Kalon.Back.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,20 +15,24 @@ public class AuthController: ControllerBase
     private readonly IPasswordService _passwordService;
     private readonly MeranClient _meranClient;
     private readonly IConfiguration _configuration;
+    private readonly IJwtTokenService _jwtTokenService;
 
     public AuthController(
         ApplicationDbContext dbContext,
         IPasswordService passwordService,
         MeranClient meranClient,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IJwtTokenService jwtTokenService)
     {
         _dbContext = dbContext;
         _passwordService = passwordService;
         _meranClient = meranClient;
         _configuration = configuration;
+        _jwtTokenService = jwtTokenService;
     }
 
     [HttpPost("login")]
+    [AllowAnonymous]
     [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status401Unauthorized)]
@@ -92,6 +97,7 @@ public class AuthController: ControllerBase
                     Firstname = user.Firstname,
                     Lastname = user.Lastname,
                     Email = user.Email,
+                    Role = user.Role,
                     MeranId = user.MeranId,
                     Organization = new OrganizationLoginResponse
                     {
@@ -114,6 +120,8 @@ public class AuthController: ControllerBase
                     Plan = meranStatus.Plan
                 }
             };
+
+            response.Token = _jwtTokenService.CreateToken(user, user.Organization.Id);
 
             return Ok(response);
         }

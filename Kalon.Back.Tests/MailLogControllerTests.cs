@@ -3,6 +3,8 @@ using Kalon.Back.Data;
 using Kalon.Back.DTOs;
 using Kalon.Back.Models;
 using Kalon.Back.Services.OrganizationAccess;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,6 +14,20 @@ public class OrganizationDocumentsControllerTests
 {
     private static OrganizationDocumentsController CreateController(ApplicationDbContext dbContext) =>
         new(dbContext, new UserOrganizationAccessService(dbContext));
+
+    private static void SetAuthenticatedUser(ControllerBase controller, Guid userId)
+    {
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(
+                [
+                    new Claim("sub", userId.ToString())
+                ], "TestAuth"))
+            }
+        };
+    }
 
     private static ApplicationDbContext CreateDbContext(string dbName)
     {
@@ -98,7 +114,8 @@ public class OrganizationDocumentsControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
-        var result = await controller.GetGeneratedDocuments(userId, CancellationToken.None);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.GetGeneratedDocuments(CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
         var payload = Assert.IsType<List<GeneratedDocumentLightResponse>>(ok.Value);
@@ -133,7 +150,8 @@ public class OrganizationDocumentsControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
-        var result = await controller.GetGeneratedDocumentById(userId, document.Id, false, CancellationToken.None);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.GetGeneratedDocumentById(document.Id, false, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
         var payload = Assert.IsType<GeneratedDocumentDetailsResponse>(ok.Value);
@@ -209,7 +227,8 @@ public class OrganizationDocumentsControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
-        var result = await controller.GetMailLogs(userId, CancellationToken.None);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.GetMailLogs(CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
         var payload = Assert.IsType<List<MailLogLightResponse>>(ok.Value);
@@ -254,7 +273,8 @@ public class OrganizationDocumentsControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
-        var result = await controller.GetMailLogById(userId, mailLog.Id, false, CancellationToken.None);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.GetMailLogById(mailLog.Id, false, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
         var payload = Assert.IsType<MailLogDetailsResponse>(ok.Value);

@@ -3,6 +3,8 @@ using Kalon.Back.Data;
 using Kalon.Back.DTOs;
 using Kalon.Back.Models;
 using Kalon.Back.Services.OrganizationAccess;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,6 +15,20 @@ public class OrganizationCustomContentControllerTests
 {
     private static OrganizationCustomContentController CreateController(ApplicationDbContext dbContext) =>
         new(dbContext, new UserOrganizationAccessService(dbContext));
+
+    private static void SetAuthenticatedUser(ControllerBase controller, Guid userId)
+    {
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(
+                [
+                    new Claim("sub", userId.ToString())
+                ], "TestAuth"))
+            }
+        };
+    }
 
     private static ApplicationDbContext CreateDbContext(string dbName)
     {
@@ -66,6 +82,7 @@ public class OrganizationCustomContentControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
         var request = new ContentBlockUpsertRequest
         {
             Name = "Intro",
@@ -75,7 +92,7 @@ public class OrganizationCustomContentControllerTests
             UsableInReceipt = false
         };
 
-        var result = await controller.CreateContentBlock(userId, request, CancellationToken.None);
+        var result = await controller.CreateContentBlock(request, CancellationToken.None);
 
         var created = Assert.IsType<CreatedAtActionResult>(result);
         var payload = Assert.IsType<ContentBlockResponse>(created.Value);
@@ -96,6 +113,7 @@ public class OrganizationCustomContentControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
         var request = new ContentBlockUpsertRequest
         {
             Name = "Signature",
@@ -103,7 +121,7 @@ public class OrganizationCustomContentControllerTests
             MimeType = "image/png"
         };
 
-        var result = await controller.CreateContentBlock(userId, request, CancellationToken.None);
+        var result = await controller.CreateContentBlock(request, CancellationToken.None);
 
         Assert.IsType<BadRequestObjectResult>(result);
     }
@@ -145,7 +163,8 @@ public class OrganizationCustomContentControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
-        var result = await controller.GetContentBlocks(userId, CancellationToken.None);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.GetContentBlocks(CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
         var payload = Assert.IsType<List<ContentBlockResponse>>(ok.Value);
@@ -165,7 +184,8 @@ public class OrganizationCustomContentControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
-        var result = await controller.GetContentBlockById(userId, Guid.NewGuid(), CancellationToken.None);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.GetContentBlockById(Guid.NewGuid(), CancellationToken.None);
 
         Assert.IsType<NotFoundObjectResult>(result);
     }
@@ -194,6 +214,7 @@ public class OrganizationCustomContentControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
         var request = new ContentBlockUpsertRequest
         {
             Name = "After",
@@ -204,7 +225,7 @@ public class OrganizationCustomContentControllerTests
             UsableInReceipt = true
         };
 
-        var result = await controller.UpdateContentBlock(userId, block.Id, request, CancellationToken.None);
+        var result = await controller.UpdateContentBlock(block.Id, request, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
         var payload = Assert.IsType<ContentBlockResponse>(ok.Value);
@@ -238,7 +259,8 @@ public class OrganizationCustomContentControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
-        var result = await controller.DeleteContentBlock(userId, block.Id, CancellationToken.None);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.DeleteContentBlock(block.Id, CancellationToken.None);
 
         Assert.IsType<NoContentResult>(result);
         var exists = await dbContext.ContentBlocks.AnyAsync(x => x.Id == block.Id);
@@ -258,6 +280,7 @@ public class OrganizationCustomContentControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
         var request = new OrganizationLogoUpsertRequest
         {
             FileName = "logo.png",
@@ -266,7 +289,7 @@ public class OrganizationCustomContentControllerTests
             FileSizeBytes = 1234
         };
 
-        var result = await controller.CreateOrganizationLogo(userId, request, CancellationToken.None);
+        var result = await controller.CreateOrganizationLogo(request, CancellationToken.None);
 
         var created = Assert.IsType<CreatedAtActionResult>(result);
         var payload = Assert.IsType<OrganizationLogoResponse>(created.Value);
@@ -297,6 +320,7 @@ public class OrganizationCustomContentControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
         var request = new OrganizationLogoUpsertRequest
         {
             FileName = "after.png",
@@ -305,7 +329,7 @@ public class OrganizationCustomContentControllerTests
             FileSizeBytes = 200
         };
 
-        var result = await controller.UpdateOrganizationLogo(userId, request, CancellationToken.None);
+        var result = await controller.UpdateOrganizationLogo(request, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
         var payload = Assert.IsType<OrganizationLogoResponse>(ok.Value);
@@ -337,7 +361,8 @@ public class OrganizationCustomContentControllerTests
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
-        var result = await controller.DeleteOrganizationLogo(userId, CancellationToken.None);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.DeleteOrganizationLogo(CancellationToken.None);
 
         Assert.IsType<NoContentResult>(result);
         var exists = await dbContext.OrganizationLogos.AnyAsync(x => x.OrganizationId == organizationId);
