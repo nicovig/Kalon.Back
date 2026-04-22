@@ -14,10 +14,20 @@ namespace Kalon.Back.Controllers;
 public class SendingController : ControllerBase
 {
     private readonly ISendingService _sendingService;
+    private readonly IVariableResolverService _variableResolverService;
 
-    public SendingController(ISendingService sendingService)
+    public SendingController(ISendingService sendingService, IVariableResolverService variableResolverService)
     {
         _sendingService = sendingService;
+        _variableResolverService = variableResolverService;
+    }
+
+    [HttpGet("mail-editor-tags")]
+    [ProducesResponseType(typeof(List<MailEditorVariableTag>), StatusCodes.Status200OK)]
+    public ActionResult<List<MailEditorVariableTag>> GetMailEditorTags([FromQuery] bool hasCompanyRecipient = false)
+    {
+        var tags = _variableResolverService.GetAvailableTags(hasCompanyRecipient).ToList();
+        return Ok(tags);
     }
 
     [HttpPost("send")]
@@ -43,32 +53,55 @@ public class SendingController : ControllerBase
 
     // impression PDF
     [HttpPost("print")]
+    [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Print(
         [FromBody] SendDocumentDto dto)
     {
         if (!DocumentType.IsValid(dto.DocumentType))
-            return BadRequest("Type de document invalide.");
+            return BadRequest(new ApiMessageResponse { Message = "Type de document invalide." });
 
         if (dto.Channel != "print")
-            return BadRequest("Utilisez /send pour les emails.");
+            return BadRequest(new ApiMessageResponse { Message = "Utilisez /send pour les emails." });
 
-        if (!dto.RecipientIds.Any())
-            return BadRequest("Aucun destinataire sélectionné.");
+        if (dto.RecipientIds is null || !dto.RecipientIds.Any())
+            return BadRequest(new ApiMessageResponse { Message = "Aucun destinataire sélectionné." });
 
         var organizationId = GetOrganizationId();
-        var result = await _sendingService.GeneratePrintPdfAsync(dto, organizationId);
+        try
+        {
+            var result = await _sendingService.GeneratePrintPdfAsync(dto, organizationId);
 
-        return File(result.PdfBytes, "application/pdf",
-            $"courriers_{DateTime.Now:yyyyMMdd}.pdf");
+            return File(result.PdfBytes, "application/pdf",
+                $"courriers_{DateTime.Now:yyyyMMdd}.pdf");
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new ApiMessageResponse { Message = ex.Message });
+        }
     }
 
     // confirmation manuelle qu'un courrier a été posté
     [HttpPatch("confirm-mailed/{mailLogId}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ConfirmMailed(Guid mailLogId)
     {
+        if (mailLogId == Guid.Empty)
+            return BadRequest(new ApiMessageResponse { Message = "mailLogId is required." });
+
         var organizationId = GetOrganizationId();
-        await _sendingService.ConfirmMailedAsync(mailLogId, organizationId);
-        return NoContent();
+        try
+        {
+            await _sendingService.ConfirmMailedAsync(mailLogId, organizationId);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new ApiMessageResponse { Message = ex.Message });
+        }
     }
 
     private Guid GetOrganizationId()

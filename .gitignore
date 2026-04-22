@@ -8,3 +8,4 @@ Kalon.Back.Tests/obj
 /Kalon.Back/appsettings.json
 /Kalon.Back/appsettings.Development.json
 /Kalon.Back/appsettings.Production.json
+.tmp-test-out

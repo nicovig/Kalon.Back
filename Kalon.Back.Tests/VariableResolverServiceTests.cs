@@ -39,6 +39,7 @@ public class VariableResolverServiceTests
         RNA = "W441234567",
         SIRET = "12345678900014",
         Email = "dg@magnificat.asso.fr",
+        Website = "https://don.magnificat.asso.fr",
         Street = "8 rue de la Paix",
         PostalCode = "49100",
         City = "Angers"
@@ -138,5 +139,58 @@ public class VariableResolverServiceTests
         var contact = MakeContact(c => c.Address = null);
         var result = _resolver.Resolve("{{adresse_complete}}", contact, MakeOrg());
         Assert.Equal("", result);
+    }
+
+    [Fact]
+    public void Resolve_DecodesHtmlEntities()
+    {
+        var template = "Nous n&#39;avons pas reçu votre cotisation";
+        var result = _resolver.Resolve(template, MakeContact(), MakeOrg());
+        Assert.Equal("Nous n'avons pas reçu votre cotisation", result);
+    }
+
+    [Fact]
+    public void Resolve_AliasAssociationAndPaymentLink_ReplacesCorrectly()
+    {
+        var template = "Association: {{association}} - Lien: {{lien_paiement}}";
+        var result = _resolver.Resolve(template, MakeContact(), MakeOrg());
+        Assert.Equal("Association: Magnificat - Lien: https://don.magnificat.asso.fr", result);
+    }
+
+    [Fact]
+    public void Resolve_RemovesUnknownDoubleBracketPlaceholders()
+    {
+        var template = "Texte {{inconnu}} avec {{autre_token}} placeholder";
+        var result = _resolver.Resolve(template, MakeContact(), MakeOrg());
+        Assert.Equal("Texte  avec  placeholder", result);
+    }
+
+    [Fact]
+    public void Resolve_FrontDonationTokens_ReplacesCorrectly()
+    {
+        var contact = MakeContact(c =>
+        {
+            c.FirstDonationAt = new DateTime(2024, 01, 15);
+            c.LastDonation = new DateTime(2025, 02, 20);
+            c.AverageDonationAmount = 42.5m;
+            c.DonationCount = 4;
+            c.TotalDonation = 170m;
+        });
+
+        var template = "{{totalDonation}}|{{firstDonationAt}}|{{lastDonation}}|{{averageDonationAmount}}|{{donationCount}}";
+        var result = _resolver.Resolve(template, contact, MakeOrg());
+
+        Assert.Contains("170", result);
+        Assert.Contains("15/01/2024", result);
+        Assert.Contains("20/02/2025", result);
+        Assert.Contains("42", result);
+        Assert.Contains("|4", result);
+    }
+
+    [Fact]
+    public void GetAvailableTags_IncludesCompanyTag_WhenRequested()
+    {
+        var tags = _resolver.GetAvailableTags(true);
+        Assert.Contains(tags, t => t.Id == "enterprise_name");
     }
 }

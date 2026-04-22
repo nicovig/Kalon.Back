@@ -2,6 +2,8 @@
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
+using System.Net;
+using System.Text.RegularExpressions;
 
 namespace Kalon.Back.Services.Mail;
 
@@ -478,13 +480,15 @@ public class DocumentGeneratorService : IDocumentGeneratorService
     private static string StripHtml(string html)
     {
         if (string.IsNullOrEmpty(html)) return "";
-        return System.Text.RegularExpressions.Regex
-            .Replace(html, "<.*?>", " ")
-            .Replace("&nbsp;", " ")
-            .Replace("&amp;", "&")
-            .Replace("&lt;", "<")
-            .Replace("&gt;", ">")
-            .Replace("  ", " ")
-            .Trim();
+        var decoded = WebUtility.HtmlDecode(html)
+            .Replace('\u00A0', ' ');
+
+        var withLineBreaks = Regex.Replace(decoded, @"<(br|BR)\s*/?>", "\n");
+        withLineBreaks = Regex.Replace(withLineBreaks, @"</(p|div|li|h[1-6])>", "\n", RegexOptions.IgnoreCase);
+
+        var withoutTags = Regex.Replace(withLineBreaks, "<.*?>", " ");
+        var normalizedLines = Regex.Replace(withoutTags, @"[ \t]{2,}", " ");
+        var normalizedBreaks = Regex.Replace(normalizedLines, @"\n{3,}", "\n\n");
+        return normalizedBreaks.Trim();
     }
 }

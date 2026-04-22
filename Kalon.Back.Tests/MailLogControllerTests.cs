@@ -236,7 +236,52 @@ public class OrganizationDocumentsControllerTests
         Assert.Equal(DocumentType.Message, payload[0].Type);
         Assert.True(payload[0].IsEmail);
         Assert.Equal("John Doe", payload[0].SendAt);
-        Assert.Equal(GeneratedDocumentStatuses.Sent, payload[0].Status);
+        Assert.Equal(MailLogStatuses.Sent, payload[0].Status);
+    }
+
+    [Fact]
+    public async Task GetMailLogs_ReturnsPrintedStatus_ForPrintedPaperLog()
+    {
+        using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var userId = Guid.NewGuid();
+        var user = CreateUser(userId, "owner@example.com");
+        var organizationId = Guid.NewGuid();
+        var organization = CreateOrganization(organizationId, userId, user);
+        var contact = new Contact
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = organizationId,
+            Kind = ContactKinds.Donor,
+            Firstname = "Jane",
+            Lastname = "Doe",
+            Email = "jane@doe.com",
+            CreatedAt = DateTime.UtcNow
+        };
+
+        dbContext.Users.Add(user);
+        dbContext.Organizations.Add(organization);
+        dbContext.Contacts.Add(contact);
+        dbContext.MailLogs.Add(new MailLog
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = organizationId,
+            ContactId = contact.Id,
+            IsEmail = false,
+            Subject = "Paper reminder",
+            Body = "Body",
+            Status = MailLogStatuses.Printed,
+            CreatedAt = DateTime.UtcNow
+        });
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.GetMailLogs(CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var payload = Assert.IsType<List<MailLogListResponse>>(ok.Value);
+        var item = Assert.Single(payload);
+        Assert.Equal(MailLogStatuses.Printed, item.Status);
     }
 
     [Fact]
@@ -283,5 +328,7 @@ public class OrganizationDocumentsControllerTests
         var payload = Assert.IsType<MailLogDetailsResponse>(ok.Value);
         Assert.Equal(mailLog.Id, payload.Id);
         Assert.Equal("Subject", payload.Subject);
+        Assert.Equal("John Doe", payload.ContactDisplayName);
+        Assert.Equal("john@doe.com", payload.ContactEmail);
     }
 }

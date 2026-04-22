@@ -43,6 +43,7 @@ public class MailLogLightResponse
 
 public class MailLogListResponse
 {
+    public Guid Id { get; set; }
     public string Type { get; set; } = string.Empty;
     public DateTime Date { get; set; }
     public bool IsEmail { get; set; }
@@ -55,7 +56,11 @@ public class MailLogDetailsResponse
     public Guid Id { get; set; }
     public Guid OrganizationId { get; set; }
     public Guid ContactId { get; set; }
+    public string ContactDisplayName { get; set; } = string.Empty;
+    public string? ContactEmail { get; set; }
     public Guid? GeneratedDocumentId { get; set; }
+    public string? GeneratedDocumentType { get; set; }
+    public string? GeneratedDocumentOrderNumber { get; set; }
     public bool IsEmail { get; set; }
     public string? SentToEmail { get; set; }
     public string Subject { get; set; } = string.Empty;

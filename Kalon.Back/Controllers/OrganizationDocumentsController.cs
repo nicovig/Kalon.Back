@@ -143,17 +143,18 @@ public class OrganizationDocumentsController(
             .OrderByDescending(x => x.CreatedAt)
             .Select(x => new MailLogListResponse
             {
+                Id = x.Id,
                 Type = x.GeneratedDocument != null ? x.GeneratedDocument.DocumentType : DocumentType.Message,
                 Date = x.CreatedAt,
                 IsEmail = x.IsEmail,
                 SendAt = $"{x.Contact.Firstname} {x.Contact.Lastname}".Trim(),
-                Status = x.GeneratedDocument != null
-                    ? x.GeneratedDocument.Status
-                    : x.Status == MailLogStatuses.Error
-                        ? GeneratedDocumentStatuses.Error
+                Status = x.Status == MailLogStatuses.Error
+                    || (x.GeneratedDocument != null && x.GeneratedDocument.Status == GeneratedDocumentStatuses.Error)
+                        ? MailLogStatuses.Error
                         : x.Status == MailLogStatuses.Printed
-                            ? GeneratedDocumentStatuses.Generated
-                            : GeneratedDocumentStatuses.Sent
+                            || (x.GeneratedDocument != null && x.GeneratedDocument.Status == GeneratedDocumentStatuses.Generated)
+                            ? MailLogStatuses.Printed
+                            : MailLogStatuses.Sent
             })
             .ToListAsync(cancellationToken);
 
@@ -208,7 +209,11 @@ public class OrganizationDocumentsController(
                 Id = x.Id,
                 OrganizationId = x.OrganizationId,
                 ContactId = x.ContactId,
+                    ContactDisplayName = $"{x.Contact.Firstname} {x.Contact.Lastname}".Trim(),
+                    ContactEmail = x.Contact.Email,
                 GeneratedDocumentId = x.GeneratedDocumentId,
+                    GeneratedDocumentType = x.GeneratedDocument != null ? x.GeneratedDocument.DocumentType : null,
+                    GeneratedDocumentOrderNumber = x.GeneratedDocument != null ? x.GeneratedDocument.OrderNumber : null,
                 IsEmail = x.IsEmail,
                 SentToEmail = x.SentToEmail,
                 Subject = x.Subject,
