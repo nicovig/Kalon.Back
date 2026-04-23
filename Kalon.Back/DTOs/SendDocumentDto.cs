@@ -3,27 +3,29 @@
 // DTOs/Sending/SendDocumentDto.cs
 public class SendDocumentDto
 {
-    // "reminder" | "cerfa_11580" | "cerfa_16216"
+    // "message" | "cerfa_11580" | "cerfa_16216"
     // | "membership_certificate" | "payment_attestation"
-    public string DocumentType { get; set; }
+    public string DocumentType { get; set; } = string.Empty;
 
     // "email" | "print"
-    public string Channel { get; set; }
+    public string Channel { get; set; } = string.Empty;
 
-    // null si Channel == "print" et DocumentType == "reminder"
+    // sujet du message d'accompagnement (email ou lettre)
     public string? Subject { get; set; }
 
-    // HTML sérialisé depuis TipTap
-    // pour les Cerfa : c'est l'encart libre (message personnalisé)
-    // pour les relances : c'est le corps complet du mail
-    public string BodyHtml { get; set; }
+    // texte d'accompagnement (email ou lettre)
+    public string BodyHtml { get; set; } = string.Empty;
 
-    public List<Guid> RecipientIds { get; set; }
+    // texte injecté dans le document généré (cerfa / attestation / certificat)
+    // ignoré pour DocumentType == "message"
+    public string? DocumentBodyHtml { get; set; }
+
+    public List<Guid> RecipientIds { get; set; } = [];
 
     // optionnel — signature choisie dans ContentBlock
     public Guid? SignatureBlockId { get; set; }
 
-    // requis si DocumentType != "reminder"
+    // requis selon le type de document
     // ids des donations à rattacher au document
     public List<Guid>? DonationIds { get; set; }
 }
@@ -39,14 +41,14 @@ public class SendDocumentResultDto
 public class SendDocumentErrorDto
 {
     public Guid ContactId { get; set; }
-    public string ContactName { get; set; }
-    public string Reason { get; set; }
+    public string ContactName { get; set; } = string.Empty;
+    public string Reason { get; set; } = string.Empty;
 }
 
 // résultat retourné après une impression
 public class PrintDocumentResultDto
 {
-    public byte[] PdfBytes { get; set; }
+    public byte[] PdfBytes { get; set; } = [];
     public int PageCount { get; set; }
     public List<Guid> GeneratedDocumentIds { get; set; } = new();
 }

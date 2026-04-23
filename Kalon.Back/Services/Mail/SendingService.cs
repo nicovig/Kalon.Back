@@ -43,6 +43,7 @@ public class SendingService : ISendingService
             .Where(c => dto.RecipientIds.Contains(c.Id)
                      && c.OrganizationId == organizationId)
             .ToListAsync();
+        var effectiveDocumentType = ResolveEffectiveDocumentType(dto.DocumentType, contacts);
 
         ContentBlock? signatureBlock = null;
         if (dto.SignatureBlockId.HasValue)
@@ -56,19 +57,36 @@ public class SendingService : ISendingService
         {
             try
             {
-                var resolvedHtml = _resolver.Resolve(dto.BodyHtml, contact, org);
+                var resolvedCompanionHtml = _resolver.Resolve(dto.BodyHtml, contact, org);
+                var documentTemplate = dto.DocumentBodyHtml ?? dto.BodyHtml;
+                var resolvedDocumentHtml = _resolver.Resolve(documentTemplate, contact, org);
                 var resolvedSubject = dto.Subject != null
                     ? _resolver.Resolve(dto.Subject, contact, org)
                     : null;
 
                 // si c'est un document fiscal → créer GeneratedDocument + PDF
                 GeneratedDocument? generatedDoc = null;
-                if (DocumentType.RequiresOrderNumber(dto.DocumentType)
-                    || dto.DocumentType == DocumentType.MembershipCertificate
-                    || dto.DocumentType == DocumentType.PaymentAttestation)
+                if (RequiresGeneratedDocument(effectiveDocumentType))
                 {
                     generatedDoc = await CreateGeneratedDocumentAsync(
-                        dto, contact, org, signatureBlock, resolvedHtml);
+                        effectiveDocumentType, contact, org, signatureBlock, resolvedDocumentHtml);
+                }
+
+                byte[]? attachmentBytes = null;
+                string? attachmentFileName = null;
+                if (generatedDoc != null)
+                {
+                    var attachmentPage = new PrintPageData
+                    {
+                        Contact = contact,
+                        Organization = org,
+                        ResolvedHtml = resolvedDocumentHtml,
+                        DocumentType = effectiveDocumentType,
+                        SignatureBlock = signatureBlock,
+                        GeneratedDocument = generatedDoc
+                    };
+                    attachmentBytes = _documentGenerator.GenerateSingle(attachmentPage);
+                    attachmentFileName = BuildDocumentFileName(effectiveDocumentType, generatedDoc.OrderNumber);
                 }
 
                 // envoi mail
@@ -77,9 +95,11 @@ public class SendingService : ISendingService
                     ToEmail = contact.Email!,
                     ToName = ContactDisplayName(contact),
                     Subject = resolvedSubject ?? "Message de votre association",
-                    BodyHtml = resolvedHtml,
+                    BodyHtml = resolvedCompanionHtml,
                     SenderEmail = org.SenderEmail ?? "noreply@kalon-app.fr",
-                    SenderName = org.SenderName ?? org.Name
+                    SenderName = org.SenderName ?? org.Name,
+                    AttachmentBytes = attachmentBytes,
+                    AttachmentFileName = attachmentFileName
                 });
 
                 // log
@@ -91,7 +111,7 @@ public class SendingService : ISendingService
                     IsEmail = true,
                     SentToEmail = contact.Email!,
                     Subject = resolvedSubject ?? "",
-                    Body = resolvedHtml,
+                    Body = resolvedCompanionHtml,
                     Status = MailLogStatuses.Sent,
                     CreatedAt = DateTime.UtcNow
                 });
@@ -146,6 +166,7 @@ public class SendingService : ISendingService
             .Where(c => dto.RecipientIds.Contains(c.Id)
                      && c.OrganizationId == organizationId)
             .ToListAsync();
+        var effectiveDocumentType = ResolveEffectiveDocumentType(dto.DocumentType, contacts);
 
         ContentBlock? signatureBlock = null;
         if (dto.SignatureBlockId.HasValue)
@@ -158,14 +179,16 @@ public class SendingService : ISendingService
 
         foreach (var contact in contacts)
         {
-            var resolvedHtml = _resolver.Resolve(dto.BodyHtml, contact, org);
+            var resolvedCompanionHtml = _resolver.Resolve(dto.BodyHtml, contact, org);
+            var documentTemplate = dto.DocumentBodyHtml ?? dto.BodyHtml;
+            var resolvedDocumentHtml = _resolver.Resolve(documentTemplate, contact, org);
 
             // créer GeneratedDocument si c'est un document fiscal
             GeneratedDocument? generatedDoc = null;
-            if (dto.DocumentType != "reminder")
+            if (RequiresGeneratedDocument(effectiveDocumentType))
             {
                 generatedDoc = await CreateGeneratedDocumentAsync(
-                    dto, contact, org, signatureBlock, resolvedHtml);
+                    effectiveDocumentType, contact, org, signatureBlock, resolvedDocumentHtml);
                 generatedDoc.Status = GeneratedDocumentStatuses.Generated;
                 result.GeneratedDocumentIds.Add(generatedDoc.Id);
             }
@@ -178,7 +201,7 @@ public class SendingService : ISendingService
                 GeneratedDocumentId = generatedDoc?.Id,
                 IsEmail = false,
                 Subject = dto.Subject ?? dto.DocumentType,
-                Body = resolvedHtml,
+                Body = resolvedCompanionHtml,
                 Status = MailLogStatuses.Printed,
                 PrintedAt = DateTime.UtcNow,
                 CreatedAt = DateTime.UtcNow
@@ -188,8 +211,21 @@ public class SendingService : ISendingService
             {
                 Contact = contact,
                 Organization = org,
-                ResolvedHtml = resolvedHtml,
-                DocumentType = dto.DocumentType,
+                ResolvedHtml = resolvedCompanionHtml,
+                DocumentType = DocumentType.Message,
+                SignatureBlock = signatureBlock,
+                GeneratedDocument = generatedDoc
+            });
+
+            if (generatedDoc is null)
+                continue;
+
+            pagesData.Add(new PrintPageData
+            {
+                Contact = contact,
+                Organization = org,
+                ResolvedHtml = resolvedDocumentHtml,
+                DocumentType = effectiveDocumentType,
                 SignatureBlock = signatureBlock,
                 GeneratedDocument = generatedDoc
             });
@@ -199,7 +235,7 @@ public class SendingService : ISendingService
 
         // générer le PDF multi-pages
         result.PdfBytes = _documentGenerator.GenerateMultiPage(pagesData);
-        result.PageCount = contacts.Count;
+        result.PageCount = pagesData.Count;
 
         return result;
     }
@@ -229,22 +265,22 @@ public class SendingService : ISendingService
     // ── helpers privés ────────────────────────────────────────────
 
     private async Task<GeneratedDocument> CreateGeneratedDocumentAsync(
-        SendDocumentDto dto,
+        string documentType,
         Contact contact,
         Organization org,
         ContentBlock? signatureBlock,
         string resolvedHtml)
     {
-        var orderNumber = DocumentType.RequiresOrderNumber(dto.DocumentType)
+        var orderNumber = DocumentType.RequiresOrderNumber(documentType)
             ? await GenerateOrderNumberAsync(org.Id)
             : null;
 
         var doc = new GeneratedDocument
         {
             OrganizationId = org.Id,
-            DocumentType = dto.DocumentType,
+            DocumentType = documentType,
             OrderNumber = orderNumber,
-            TaxReductionRate = GetTaxRate(org.FiscalStatus, dto.DocumentType),
+            TaxReductionRate = GetTaxRate(org.FiscalStatus, documentType),
             Status = GeneratedDocumentStatuses.Pending,
 
             // snapshot org
@@ -297,9 +333,38 @@ public class SendingService : ISendingService
         };
     }
 
+    private static bool RequiresGeneratedDocument(string documentType) =>
+        DocumentType.RequiresOrderNumber(documentType)
+        || documentType == DocumentType.MembershipCertificate
+        || documentType == DocumentType.PaymentAttestation;
+
+    private static string ResolveEffectiveDocumentType(string requestedDocumentType, IReadOnlyCollection<Contact> contacts)
+    {
+        if (!DocumentType.IsTaxDeductible(requestedDocumentType))
+            return requestedDocumentType;
+
+        var hasCompany = contacts.Any(c => c.Kind == ContactKinds.Company);
+        var hasIndividual = contacts.Any(c => c.Kind != ContactKinds.Company);
+
+        if (hasCompany && hasIndividual)
+            throw new InvalidOperationException("Pour un reçu fiscal, sélectionnez soit uniquement des entreprises, soit uniquement des particuliers.");
+
+        if (hasCompany)
+            return DocumentType.Cerfa16216;
+
+        return DocumentType.Cerfa11580;
+    }
+
     private static string ContactDisplayName(Contact contact) =>
         contact.Kind == ContactKinds.Company
             && contact.Enterprise?.Name is not null
             ? contact.Enterprise.Name
             : $"{contact.Firstname} {contact.Lastname}".Trim();
+
+    private static string BuildDocumentFileName(string documentType, string? orderNumber)
+    {
+        var normalizedType = documentType.Replace("_", "-");
+        var suffix = !string.IsNullOrWhiteSpace(orderNumber) ? orderNumber : DateTime.UtcNow.ToString("yyyyMMddHHmmss");
+        return $"{normalizedType}-{suffix}.pdf";
+    }
 }

@@ -15,11 +15,19 @@ public class SendingControllerTests
     {
         public bool ThrowOnPrint { get; set; }
         public bool ThrowOnConfirm { get; set; }
+        public bool ThrowOnSend { get; set; }
         public Guid? LastConfirmedMailLogId { get; private set; }
 
         public Task<SendDocumentResultDto> SendByEmailAsync(SendDocumentDto dto, Guid organizationId)
         {
-            throw new NotImplementedException();
+            if (ThrowOnSend)
+                throw new InvalidOperationException("Association introuvable.");
+
+            return Task.FromResult(new SendDocumentResultDto
+            {
+                SuccessCount = 1,
+                ErrorCount = 0
+            });
         }
 
         public Task<PrintDocumentResultDto> GeneratePrintPdfAsync(SendDocumentDto dto, Guid organizationId)
@@ -110,6 +118,26 @@ public class SendingControllerTests
         var badRequest = Assert.IsType<BadRequestObjectResult>(result);
         var payload = Assert.IsType<ApiMessageResponse>(badRequest.Value);
         Assert.Equal("Type de document invalide.", payload.Message);
+    }
+
+    [Fact]
+    public async Task Send_ReturnsBadRequest_WhenDocumentBodyHtmlMissingForDocumentType()
+    {
+        var service = new FakeSendingService();
+        var controller = CreateController(service, Guid.NewGuid());
+
+        var result = await controller.Send(new SendDocumentDto
+        {
+            DocumentType = DocumentType.Cerfa11580,
+            Channel = "email",
+            Subject = "Sujet",
+            BodyHtml = "<p>Accompagnement</p>",
+            RecipientIds = [Guid.NewGuid()]
+        });
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
+        var payload = Assert.IsType<ApiMessageResponse>(badRequest.Value);
+        Assert.Equal("DocumentBodyHtml is required for document types.", payload.Message);
     }
 
     [Fact]

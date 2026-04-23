@@ -46,9 +46,22 @@ public class SendingController : ControllerBase
         if (!dto.RecipientIds.Any())
             return BadRequest(new ApiMessageResponse { Message = "Aucun destinataire sélectionné." });
 
+        if (dto.DocumentType != DocumentType.Message && string.IsNullOrWhiteSpace(dto.DocumentBodyHtml))
+            return BadRequest(new ApiMessageResponse { Message = "DocumentBodyHtml is required for document types." });
+
         var organizationId = GetOrganizationId();
-        var result = await _sendingService.SendByEmailAsync(dto, organizationId);
-        return Ok(result);
+        try
+        {
+            var result = await _sendingService.SendByEmailAsync(dto, organizationId);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            if (ex.Message.Contains("introuvable", StringComparison.OrdinalIgnoreCase))
+                return NotFound(new ApiMessageResponse { Message = ex.Message });
+
+            return BadRequest(new ApiMessageResponse { Message = ex.Message });
+        }
     }
 
     // impression PDF
@@ -68,6 +81,9 @@ public class SendingController : ControllerBase
         if (dto.RecipientIds is null || !dto.RecipientIds.Any())
             return BadRequest(new ApiMessageResponse { Message = "Aucun destinataire sélectionné." });
 
+        if (dto.DocumentType != DocumentType.Message && string.IsNullOrWhiteSpace(dto.DocumentBodyHtml))
+            return BadRequest(new ApiMessageResponse { Message = "DocumentBodyHtml is required for document types." });
+
         var organizationId = GetOrganizationId();
         try
         {
@@ -78,7 +94,10 @@ public class SendingController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            return NotFound(new ApiMessageResponse { Message = ex.Message });
+            if (ex.Message.Contains("introuvable", StringComparison.OrdinalIgnoreCase))
+                return NotFound(new ApiMessageResponse { Message = ex.Message });
+
+            return BadRequest(new ApiMessageResponse { Message = ex.Message });
         }
     }
 

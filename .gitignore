@@ -9,3 +9,5 @@ Kalon.Back.Tests/obj
 /Kalon.Back/appsettings.Development.json
 /Kalon.Back/appsettings.Production.json
 .tmp-test-out
+.tmp-test-obj
+.tmp-test-bin
