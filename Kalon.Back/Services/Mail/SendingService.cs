@@ -43,8 +43,6 @@ public class SendingService : ISendingService
             .Where(c => dto.RecipientIds.Contains(c.Id)
                      && c.OrganizationId == organizationId)
             .ToListAsync();
-        var effectiveDocumentType = ResolveEffectiveDocumentType(dto.DocumentType, contacts);
-
         ContentBlock? signatureBlock = null;
         if (dto.SignatureBlockId.HasValue)
             signatureBlock = await _db.ContentBlocks
@@ -57,6 +55,7 @@ public class SendingService : ISendingService
         {
             try
             {
+                var effectiveDocumentType = ResolveEffectiveDocumentTypeForContact(dto.DocumentType, contact);
                 var resolvedCompanionHtml = _resolver.Resolve(dto.BodyHtml, contact, org);
                 var documentTemplate = dto.DocumentBodyHtml ?? dto.BodyHtml;
                 var resolvedDocumentHtml = _resolver.Resolve(documentTemplate, contact, org);
@@ -166,8 +165,6 @@ public class SendingService : ISendingService
             .Where(c => dto.RecipientIds.Contains(c.Id)
                      && c.OrganizationId == organizationId)
             .ToListAsync();
-        var effectiveDocumentType = ResolveEffectiveDocumentType(dto.DocumentType, contacts);
-
         ContentBlock? signatureBlock = null;
         if (dto.SignatureBlockId.HasValue)
             signatureBlock = await _db.ContentBlocks
@@ -179,7 +176,11 @@ public class SendingService : ISendingService
 
         foreach (var contact in contacts)
         {
+            var effectiveDocumentType = ResolveEffectiveDocumentTypeForContact(dto.DocumentType, contact);
             var resolvedCompanionHtml = _resolver.Resolve(dto.BodyHtml, contact, org);
+            var resolvedSubject = dto.Subject != null
+                ? _resolver.Resolve(dto.Subject, contact, org)
+                : null;
             var documentTemplate = dto.DocumentBodyHtml ?? dto.BodyHtml;
             var resolvedDocumentHtml = _resolver.Resolve(documentTemplate, contact, org);
 
@@ -200,7 +201,7 @@ public class SendingService : ISendingService
                 ContactId = contact.Id,
                 GeneratedDocumentId = generatedDoc?.Id,
                 IsEmail = false,
-                Subject = dto.Subject ?? dto.DocumentType,
+                Subject = resolvedSubject ?? dto.DocumentType,
                 Body = resolvedCompanionHtml,
                 Status = MailLogStatuses.Printed,
                 PrintedAt = DateTime.UtcNow,
@@ -212,6 +213,7 @@ public class SendingService : ISendingService
                 Contact = contact,
                 Organization = org,
                 ResolvedHtml = resolvedCompanionHtml,
+                ResolvedSubject = resolvedSubject,
                 DocumentType = DocumentType.Message,
                 SignatureBlock = signatureBlock,
                 GeneratedDocument = generatedDoc
@@ -225,6 +227,7 @@ public class SendingService : ISendingService
                 Contact = contact,
                 Organization = org,
                 ResolvedHtml = resolvedDocumentHtml,
+                ResolvedSubject = resolvedSubject,
                 DocumentType = effectiveDocumentType,
                 SignatureBlock = signatureBlock,
                 GeneratedDocument = generatedDoc
@@ -338,21 +341,13 @@ public class SendingService : ISendingService
         || documentType == DocumentType.MembershipCertificate
         || documentType == DocumentType.PaymentAttestation;
 
-    private static string ResolveEffectiveDocumentType(string requestedDocumentType, IReadOnlyCollection<Contact> contacts)
+    private static string ResolveEffectiveDocumentTypeForContact(string requestedDocumentType, Contact contact)
     {
-        if (!DocumentType.IsTaxDeductible(requestedDocumentType))
+        if (requestedDocumentType != DocumentType.TaxReceipt)
             return requestedDocumentType;
-
-        var hasCompany = contacts.Any(c => c.Kind == ContactKinds.Company);
-        var hasIndividual = contacts.Any(c => c.Kind != ContactKinds.Company);
-
-        if (hasCompany && hasIndividual)
-            throw new InvalidOperationException("Pour un reçu fiscal, sélectionnez soit uniquement des entreprises, soit uniquement des particuliers.");
-
-        if (hasCompany)
-            return DocumentType.Cerfa16216;
-
-        return DocumentType.Cerfa11580;
+        return contact.Kind == ContactKinds.Company
+            ? DocumentType.Cerfa16216
+            : DocumentType.Cerfa11580;
     }
 
     private static string ContactDisplayName(Contact contact) =>

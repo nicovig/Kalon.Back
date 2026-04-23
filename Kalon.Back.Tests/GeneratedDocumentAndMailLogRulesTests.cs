@@ -17,11 +17,16 @@ public class GeneratedDocumentAndMailLogRulesTests
     }
 
     [Fact]
-    public void DocumentType_IncludesPaymentAttestation()
+    public void DocumentType_RequestContract_IncludesTaxReceiptAndPaymentAttestation()
     {
+        Assert.Contains(DocumentType.TaxReceipt, DocumentType.All);
         Assert.Contains(DocumentType.PaymentAttestation, DocumentType.All);
+        Assert.True(DocumentType.IsValid(DocumentType.TaxReceipt));
         Assert.True(DocumentType.IsValid(DocumentType.PaymentAttestation));
+        Assert.False(DocumentType.IsTaxDeductible(DocumentType.TaxReceipt));
         Assert.False(DocumentType.IsTaxDeductible(DocumentType.PaymentAttestation));
+        Assert.Contains(DocumentType.Cerfa11580, DocumentType.GeneratedAll);
+        Assert.Contains(DocumentType.Cerfa16216, DocumentType.GeneratedAll);
         Assert.False(DocumentType.RequiresOrderNumber(DocumentType.PaymentAttestation));
     }
 

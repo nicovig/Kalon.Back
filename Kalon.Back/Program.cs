@@ -7,11 +7,11 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using QuestPDF.Infrastructure;
-using System.Collections.Generic;
 using System.Text;
 
 QuestPDF.Settings.License = LicenseType.Community;
 
+// après les autres builder.Services...
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.Configure<PasswordOptions>(builder.Configuration.GetSection("Password"));
@@ -22,6 +22,11 @@ builder.Services.AddScoped<IUserOrganizationAccessService, UserOrganizationAcces
 builder.Services.AddScoped<IDocumentGeneratorService, DocumentGeneratorService>();
 builder.Services.AddScoped<IVariableResolverService, VariableResolverService>();
 builder.Services.AddScoped<ISendingService, SendingService>();
+builder.Services.AddScoped<IAiMailGeneratorService, AiMailGeneratorService>();
+
+builder.Services.Configure<AnthropicOptions>(
+    builder.Configuration.GetSection(AnthropicOptions.Section));
+
 builder.Services.Configure<BrevoOptions>(
     builder.Configuration.GetSection(BrevoOptions.Section));
 
@@ -35,7 +40,10 @@ builder.Services.AddSingleton<IMeranTokenProvider, MeranTokenProvider>();
 builder.Services.AddHttpClient<MeranClient>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.EnableAnnotations();
+});
 
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.Section).Get<JwtOptions>()
     ?? throw new InvalidOperationException("Jwt configuration is missing.");

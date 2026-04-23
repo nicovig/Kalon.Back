@@ -72,7 +72,7 @@ public class SendingServiceTests
     };
 
     [Fact]
-    public async Task GeneratePrintPdfAsync_CerfaRequestWithIndividuals_GeneratesCerfa11580()
+    public async Task GeneratePrintPdfAsync_TaxReceiptRequestWithIndividuals_GeneratesCerfa11580()
     {
         using var db = CreateDbContext(Guid.NewGuid().ToString());
         var organizationId = Guid.NewGuid();
@@ -93,7 +93,7 @@ public class SendingServiceTests
         var service = CreateService(db);
         await service.GeneratePrintPdfAsync(new SendDocumentDto
         {
-            DocumentType = DocumentType.Cerfa11580,
+            DocumentType = DocumentType.TaxReceipt,
             Channel = "print",
             BodyHtml = "<p>msg</p>",
             DocumentBodyHtml = "<p>doc</p>",
@@ -105,7 +105,7 @@ public class SendingServiceTests
     }
 
     [Fact]
-    public async Task GeneratePrintPdfAsync_CerfaRequestWithCompanies_GeneratesCerfa16216()
+    public async Task GeneratePrintPdfAsync_TaxReceiptRequestWithCompanies_GeneratesCerfa16216()
     {
         using var db = CreateDbContext(Guid.NewGuid().ToString());
         var organizationId = Guid.NewGuid();
@@ -127,7 +127,7 @@ public class SendingServiceTests
         var service = CreateService(db);
         await service.GeneratePrintPdfAsync(new SendDocumentDto
         {
-            DocumentType = DocumentType.Cerfa11580,
+            DocumentType = DocumentType.TaxReceipt,
             Channel = "print",
             BodyHtml = "<p>msg</p>",
             DocumentBodyHtml = "<p>doc</p>",
@@ -139,7 +139,7 @@ public class SendingServiceTests
     }
 
     [Fact]
-    public async Task GeneratePrintPdfAsync_CerfaRequestWithMixedRecipients_Throws()
+    public async Task GeneratePrintPdfAsync_TaxReceiptRequestWithMixedRecipients_GeneratesBothCerfaTypes()
     {
         using var db = CreateDbContext(Guid.NewGuid().ToString());
         var organizationId = Guid.NewGuid();
@@ -170,16 +170,21 @@ public class SendingServiceTests
         await db.SaveChangesAsync();
 
         var service = CreateService(db);
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.GeneratePrintPdfAsync(new SendDocumentDto
+        var result = await service.GeneratePrintPdfAsync(new SendDocumentDto
         {
-            DocumentType = DocumentType.Cerfa11580,
+            DocumentType = DocumentType.TaxReceipt,
             Channel = "print",
             BodyHtml = "<p>msg</p>",
             DocumentBodyHtml = "<p>doc</p>",
             RecipientIds = [individual.Id, company.Id]
-        }, organizationId));
+        }, organizationId);
 
-        Assert.Contains("uniquement des entreprises", ex.Message);
+        var generatedTypes = await db.GeneratedDocuments
+            .Select(d => d.DocumentType)
+            .ToListAsync();
+        Assert.Contains(DocumentType.Cerfa11580, generatedTypes);
+        Assert.Contains(DocumentType.Cerfa16216, generatedTypes);
+        Assert.Equal(4, result.PageCount);
     }
 
     [Fact]
@@ -205,7 +210,7 @@ public class SendingServiceTests
         var service = CreateService(db, fakeMailService);
         await service.SendByEmailAsync(new SendDocumentDto
         {
-            DocumentType = DocumentType.Cerfa11580,
+            DocumentType = DocumentType.TaxReceipt,
             Channel = "email",
             Subject = "Sujet",
             BodyHtml = "<p>accompagnement</p>",
@@ -241,7 +246,7 @@ public class SendingServiceTests
         var service = CreateService(db);
         var result = await service.GeneratePrintPdfAsync(new SendDocumentDto
         {
-            DocumentType = DocumentType.Cerfa11580,
+            DocumentType = DocumentType.TaxReceipt,
             Channel = "print",
             BodyHtml = "<p>accompagnement</p>",
             DocumentBodyHtml = "<p>document</p>",
@@ -249,5 +254,59 @@ public class SendingServiceTests
         }, organizationId);
 
         Assert.Equal(2, result.PageCount);
+    }
+
+    [Fact]
+    public async Task SendByEmailAsync_TaxReceiptWithMixedRecipients_GeneratesBothCerfaTypesAndAttachments()
+    {
+        using var db = CreateDbContext(Guid.NewGuid().ToString());
+        var organizationId = Guid.NewGuid();
+        db.Organizations.Add(CreateOrganization(organizationId));
+
+        var individual = new Contact
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = organizationId,
+            Kind = ContactKinds.Donor,
+            Firstname = "Marie",
+            Lastname = "Dupont",
+            Email = "marie@demo.org",
+            CreatedAt = DateTime.UtcNow
+        };
+        var company = new Contact
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = organizationId,
+            Kind = ContactKinds.Company,
+            Firstname = "",
+            Lastname = "",
+            Email = "compta@alpha.fr",
+            Enterprise = new ContactEnterprise { Name = "Alpha SAS" },
+            CreatedAt = DateTime.UtcNow
+        };
+        db.Contacts.AddRange(individual, company);
+        await db.SaveChangesAsync();
+
+        var fakeMailService = new FakeMailService();
+        var service = CreateService(db, fakeMailService);
+
+        await service.SendByEmailAsync(new SendDocumentDto
+        {
+            DocumentType = DocumentType.TaxReceipt,
+            Channel = "email",
+            Subject = "Sujet",
+            BodyHtml = "<p>accompagnement</p>",
+            DocumentBodyHtml = "<p>document</p>",
+            RecipientIds = [individual.Id, company.Id]
+        }, organizationId);
+
+        Assert.Equal(2, fakeMailService.SentMessages.Count);
+        Assert.All(fakeMailService.SentMessages, m => Assert.NotNull(m.AttachmentBytes));
+
+        var generatedTypes = await db.GeneratedDocuments
+            .Select(d => d.DocumentType)
+            .ToListAsync();
+        Assert.Contains(DocumentType.Cerfa11580, generatedTypes);
+        Assert.Contains(DocumentType.Cerfa16216, generatedTypes);
     }
 }

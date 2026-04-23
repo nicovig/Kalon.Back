@@ -80,23 +80,33 @@ public static class GeneratedDocumentStatuses
 
 public static class DocumentType
 {
+    public const string TaxReceipt = "tax_receipt";
     public const string Cerfa11580 = "cerfa_11580";
     public const string Cerfa16216 = "cerfa_16216";
     public const string PaymentAttestation = "payment_attestation";
     public const string MembershipCertificate = "membership_certificate";
     public const string Message = "message";
 
-    public static readonly IReadOnlyList<string> All = new[]
+    public static readonly IReadOnlyList<string> RequestAll = new[]
+    {
+        Message,
+        TaxReceipt,
+        MembershipCertificate,
+        PaymentAttestation,
+    };
+
+    public static readonly IReadOnlyList<string> GeneratedAll = new[]
     {
         Cerfa11580,
         Cerfa16216,
         PaymentAttestation,
         MembershipCertificate,
-        Message,
     };
 
+    public static readonly IReadOnlyList<string> All = RequestAll;
+
     public static bool IsValid(string? value) =>
-        value is not null && All.Contains(value);
+        value is not null && RequestAll.Contains(value);
 
     public static bool RequiresOrderNumber(string? value) =>
         value is Cerfa11580 or Cerfa16216;

@@ -4,6 +4,7 @@ using Kalon.Back.Models;
 using Kalon.Back.Services.Mail;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Swashbuckle.AspNetCore.Annotations;
 using System.Security.Claims;
 
 namespace Kalon.Back.Controllers;
@@ -31,6 +32,10 @@ public class SendingController : ControllerBase
     }
 
     [HttpPost("send")]
+    [SwaggerOperation(
+        Summary = "Envoi email",
+        Description = "Envoie un email. Si DocumentType = tax_receipt, le backend choisit automatiquement le CERFA par destinataire: cerfa_11580 (particulier) ou cerfa_16216 (entreprise), y compris pour des listes RecipientIds mixtes."
+    )]
     [ProducesResponseType(typeof(SendDocumentResultDto), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
@@ -66,6 +71,10 @@ public class SendingController : ControllerBase
 
     // impression PDF
     [HttpPost("print")]
+    [SwaggerOperation(
+        Summary = "Génération PDF courrier",
+        Description = "Génère un PDF pour impression. Si DocumentType = tax_receipt, le backend choisit automatiquement le CERFA par destinataire: cerfa_11580 (particulier) ou cerfa_16216 (entreprise), y compris pour des listes RecipientIds mixtes."
+    )]
     [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]

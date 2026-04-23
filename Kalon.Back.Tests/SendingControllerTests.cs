@@ -128,7 +128,7 @@ public class SendingControllerTests
 
         var result = await controller.Send(new SendDocumentDto
         {
-            DocumentType = DocumentType.Cerfa11580,
+            DocumentType = DocumentType.TaxReceipt,
             Channel = "email",
             Subject = "Sujet",
             BodyHtml = "<p>Accompagnement</p>",

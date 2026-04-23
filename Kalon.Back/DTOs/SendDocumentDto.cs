@@ -1,32 +1,31 @@
-﻿namespace Kalon.Back.Dtos;
+﻿using Swashbuckle.AspNetCore.Annotations;
+namespace Kalon.Back.Dtos;
 
 // DTOs/Sending/SendDocumentDto.cs
 public class SendDocumentDto
 {
-    // "message" | "cerfa_11580" | "cerfa_16216"
-    // | "membership_certificate" | "payment_attestation"
+    [SwaggerSchema(Description = "Type de document demandé. Valeurs: message, tax_receipt, membership_certificate, payment_attestation.")]
     public string DocumentType { get; set; } = string.Empty;
 
-    // "email" | "print"
+    [SwaggerSchema(Description = "Canal d'envoi. Valeurs: email, print.")]
     public string Channel { get; set; } = string.Empty;
 
-    // sujet du message d'accompagnement (email ou lettre)
+    [SwaggerSchema(Description = "Sujet du message d'accompagnement (email ou courrier).")]
     public string? Subject { get; set; }
 
-    // texte d'accompagnement (email ou lettre)
+    [SwaggerSchema(Description = "Contenu HTML du message d'accompagnement (email ou courrier).")]
     public string BodyHtml { get; set; } = string.Empty;
 
-    // texte injecté dans le document généré (cerfa / attestation / certificat)
-    // ignoré pour DocumentType == "message"
+    [SwaggerSchema(Description = "Contenu HTML injecté dans le document généré. Requis si DocumentType != message.")]
     public string? DocumentBodyHtml { get; set; }
 
+    [SwaggerSchema(Description = "Liste des contacts destinataires. Avec DocumentType = tax_receipt, le backend choisit automatiquement le CERFA par destinataire: particulier -> cerfa_11580, entreprise -> cerfa_16216.")]
     public List<Guid> RecipientIds { get; set; } = [];
 
-    // optionnel — signature choisie dans ContentBlock
+    [SwaggerSchema(Description = "Identifiant optionnel du bloc de signature.")]
     public Guid? SignatureBlockId { get; set; }
 
-    // requis selon le type de document
-    // ids des donations à rattacher au document
+    [SwaggerSchema(Description = "Liste optionnelle des dons à rattacher au document généré.")]
     public List<Guid>? DonationIds { get; set; }
 }
 

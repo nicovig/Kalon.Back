@@ -58,11 +58,11 @@ public class DocumentGeneratorService : IDocumentGeneratorService
                         break;
 
                     case Models.DocumentType.MembershipCertificate:
-                        BuildMembershipCertificate(col, data);
+                        MembershipCertificateDocumentLayout.Render(col, data);
                         break;
 
                     case Models.DocumentType.PaymentAttestation:
-                        BuildPaymentAttestation(col, data);
+                        PaymentAttestationDocumentLayout.Render(col, data);
                         break;
 
                     default:
@@ -125,141 +125,26 @@ public class DocumentGeneratorService : IDocumentGeneratorService
 
         col.Item().PaddingVertical(16);
 
+        if (!string.IsNullOrWhiteSpace(data.ResolvedSubject))
+        {
+            col.Item().Text(t =>
+            {
+                t.Span("Objet : ").Bold().Underline().FontSize(12);
+                t.Span(data.ResolvedSubject).Bold().Underline().FontSize(12);
+            });
+            col.Item().PaddingVertical(12);
+        }
+
         // corps du mail — HTML simplifié
         col.Item().Text(StripHtml(data.ResolvedHtml)).FontSize(11);
 
         col.Item().PaddingVertical(24);
 
         // signature
-        BuildSignature(col, data);
+        BuildSignature(col, data, false);
     }
 
-    private void BuildMembershipCertificate(ColumnDescriptor col, PrintPageData data)
-    {
-        var doc = data.GeneratedDocument!;
-        var org = data.Organization;
-
-        col.Item().Text("ATTESTATION DE COTISATION")
-            .Bold().FontSize(14).AlignCenter();
-
-        col.Item().PaddingVertical(10);
-
-        col.Item().Text(t =>
-        {
-            t.Line($"L'association {doc.SnapshotOrgName}").Bold();
-            t.Line(FormatAddress(
-                doc.SnapshotOrgStreet,
-                doc.SnapshotOrgPostalCode,
-                doc.SnapshotOrgCity));
-            if (doc.SnapshotOrgRna != null)
-                t.Line($"RNA : {doc.SnapshotOrgRna}");
-        });
-
-        col.Item().PaddingVertical(10);
-
-        col.Item().Text(t =>
-        {
-            t.Span("atteste que ").FontSize(11);
-            t.Span(doc.SnapshotContactDisplayName).Bold().FontSize(11);
-            t.Span(" est membre adhérent et a versé une cotisation de ").FontSize(11);
-            t.Span(doc.SnapshotAmount.ToString("C",
-                new System.Globalization.CultureInfo("fr-FR")))
-                .Bold().FontSize(11);
-            t.Span($" en date du {doc.SnapshotDonationDate:dd/MM/yyyy}.").FontSize(11);
-        });
-
-        col.Item().PaddingVertical(8);
-
-        if (!string.IsNullOrEmpty(data.ResolvedHtml))
-        {
-            col.Item().Text(StripHtml(data.ResolvedHtml)).FontSize(10);
-            col.Item().PaddingVertical(8);
-        }
-
-        col.Item().AlignRight().Text(
-            $"Fait le {DateTime.Now:dd/MM/yyyy}")
-            .FontColor(Colors.Grey.Darken1);
-
-        col.Item().PaddingVertical(16);
-        BuildSignature(col, data);
-    }
-
-    // ── Attestation paiement ───────────────────────────────────────
-
-    private void BuildPaymentAttestation(ColumnDescriptor col, PrintPageData data)
-    {
-        var doc = data.GeneratedDocument!;
-
-        col.Item().Text("ATTESTATION DE PAIEMENT")
-            .Bold().FontSize(14).AlignCenter();
-
-        col.Item().PaddingVertical(10);
-
-        col.Item().Text(t =>
-        {
-            t.Line($"L'association {doc.SnapshotOrgName}").Bold();
-        });
-
-        col.Item().PaddingVertical(10);
-
-        col.Item().Text(t =>
-        {
-            t.Span("atteste avoir reçu de ").FontSize(11);
-            t.Span(doc.SnapshotContactDisplayName).Bold().FontSize(11);
-            t.Span(" la somme de ").FontSize(11);
-            t.Span(doc.SnapshotAmount.ToString("C",
-                new System.Globalization.CultureInfo("fr-FR")))
-                .Bold().FontSize(11);
-            t.Span($" le {doc.SnapshotDonationDate:dd/MM/yyyy}.").FontSize(11);
-        });
-
-        col.Item().PaddingVertical(8);
-
-        if (!string.IsNullOrEmpty(data.ResolvedHtml))
-        {
-            col.Item().Text(StripHtml(data.ResolvedHtml)).FontSize(10);
-            col.Item().PaddingVertical(8);
-        }
-
-        col.Item().AlignRight().Text(
-            $"Fait le {DateTime.Now:dd/MM/yyyy}")
-            .FontColor(Colors.Grey.Darken1);
-
-        col.Item().PaddingVertical(16);
-        BuildSignature(col, data);
-    }
-
-    // ── Helpers communs ───────────────────────────────────────────
-
-    private void BuildLegalBlock(
-        ColumnDescriptor col,
-        string title,
-        Action<List<(string Label, string Value)>> populate)
-    {
-        var items = new List<(string Label, string Value)>();
-        populate(items);
-
-        col.Item().Border(1, Colors.Grey.Lighten1).Column(block =>
-        {
-            block.Item().Background(Colors.Grey.Lighten3)
-                .Padding(4)
-                .Text(title).Bold().FontSize(9);
-
-            foreach (var (label, value) in items)
-            {
-                block.Item().Row(row =>
-                {
-                    row.ConstantItem(120).Padding(4)
-                        .Text(label + " :").FontSize(9)
-                        .FontColor(Colors.Grey.Darken2);
-                    row.RelativeItem().Padding(4)
-                        .Text(value ?? "").FontSize(9);
-                });
-            }
-        });
-    }
-
-    private void BuildSignature(ColumnDescriptor col, PrintPageData data)
+    private void BuildSignature(ColumnDescriptor col, PrintPageData data, bool includeDate = true)
     {
         col.Item().AlignRight().Column(sig =>
         {
@@ -274,19 +159,13 @@ public class DocumentGeneratorService : IDocumentGeneratorService
                 sig.Item().PaddingVertical(4);
             }
 
-            // set de la date
-            sig.Item().Text(DateTime.Now.ToString("dd MMMM yyyy",
-                new System.Globalization.CultureInfo("fr-FR")))
-                .FontSize(9).FontColor(Colors.Grey.Darken1);
+            if (includeDate)
+            {
+                sig.Item().Text(DateTime.Now.ToString("dd MMMM yyyy",
+                    new System.Globalization.CultureInfo("fr-FR")))
+                    .FontSize(9).FontColor(Colors.Grey.Darken1);
+            }
         });
-    }
-
-    private static string FormatAddress(
-        string? street, string? postalCode, string? city)
-    {
-        var parts = new[] { street, $"{postalCode} {city}".Trim() }
-            .Where(p => !string.IsNullOrEmpty(p));
-        return string.Join(", ", parts);
     }
 
     private static string DisplayName(Contact contact) =>
@@ -294,14 +173,6 @@ public class DocumentGeneratorService : IDocumentGeneratorService
             && contact.Enterprise?.Name is not null
             ? contact.Enterprise.Name
             : $"{contact.Firstname} {contact.Lastname}".Trim();
-
-    private static string TranslateDonationType(string type) => type switch
-    {
-        "financial" => "Don financier",
-        "in_kind" => "Don en nature",
-        "sponsoring" => "Sponsoring",
-        _ => type
-    };
 
     // conversion HTML → texte brut pour les PDFs
     // pour une vraie conversion HTML→PDF plus tard : HtmlRenderer ou wkhtmltopdf

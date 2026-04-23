@@ -54,6 +54,19 @@ public class Organization
 
     public ContactStatusSettings? ContactStatusSettings { get; set; }
 
+    // description libre de l'association — utilisée par l'IA pour contextualiser
+    public string? Description { get; set; }
+
+    // année de création — ex: 1994
+    public int? FoundedYear { get; set; }
+
+    // secteur d'activité principal
+    // "humanitaire" | "sportif" | "culturel" | "médical" | "éducatif" | "environnemental" | "autre"
+    public string? ActivitySector { get; set; }
+
+    // description du public cible — ex: "parrains et marraines de 40 à 70 ans"
+    public string? AudienceDescription { get; set; }
+
     // navigation collections
     public ICollection<Contact> Contacts { get; set; } = new List<Contact>();
     public ICollection<EmailTemplate> EmailTemplates { get; set; } = new List<EmailTemplate>();
