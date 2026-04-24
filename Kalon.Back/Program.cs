@@ -2,6 +2,7 @@ using Kalon.Back.Configuration;
 using Kalon.Back.Data;
 using Kalon.Back.Services;
 using Kalon.Back.Services.Mail;
+using Kalon.Back.Services.Notification;
 using Kalon.Back.Services.OrganizationAccess;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -19,6 +20,7 @@ builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptio
 builder.Services.AddScoped<IPasswordService, PasswordService>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IUserOrganizationAccessService, UserOrganizationAccessService>();
+builder.Services.AddScoped<INotificationDashboardService, NotificationDashboardService>();
 builder.Services.AddScoped<IDocumentGeneratorService, DocumentGeneratorService>();
 builder.Services.AddScoped<IVariableResolverService, VariableResolverService>();
 builder.Services.AddScoped<ISendingService, SendingService>();

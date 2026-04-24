@@ -2,6 +2,7 @@ using Kalon.Back.Controllers;
 using Kalon.Back.Data;
 using Kalon.Back.DTOs;
 using Kalon.Back.Models;
+using Kalon.Back.Services.Mail;
 using Kalon.Back.Services.OrganizationAccess;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
@@ -12,8 +13,14 @@ namespace Kalon.Back.Tests;
 
 public class OrganizationDocumentsControllerTests
 {
+    private sealed class FakeDocumentGeneratorService : IDocumentGeneratorService
+    {
+        public byte[] GenerateMultiPage(List<PrintPageData> pages) => [0x01, 0x02];
+        public byte[] GenerateSingle(PrintPageData page) => [0x25, 0x50, 0x44, 0x46];
+    }
+
     private static OrganizationDocumentsController CreateController(ApplicationDbContext dbContext) =>
-        new(dbContext, new UserOrganizationAccessService(dbContext));
+        new(dbContext, new UserOrganizationAccessService(dbContext), new FakeDocumentGeneratorService());
 
     private static void SetAuthenticatedUser(ControllerBase controller, Guid userId)
     {
@@ -330,5 +337,95 @@ public class OrganizationDocumentsControllerTests
         Assert.Equal("Subject", payload.Subject);
         Assert.Equal("John Doe", payload.ContactDisplayName);
         Assert.Equal("john@doe.com", payload.ContactEmail);
+    }
+
+    [Fact]
+    public async Task RegenerateGeneratedDocument_CreatesNewDocument_AndReturnsPdf()
+    {
+        using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var userId = Guid.NewGuid();
+        var user = CreateUser(userId, "owner@example.com");
+        var organizationId = Guid.NewGuid();
+        var organization = CreateOrganization(organizationId, userId, user);
+        var original = new GeneratedDocument
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = organizationId,
+            DocumentType = DocumentType.PaymentAttestation,
+            SnapshotOrgName = "Org",
+            SnapshotOrgRna = "W442009999",
+            SnapshotOrgSiret = "12345678901234",
+            SnapshotOrgFiscalStatus = FiscalStatus.GeneralInterest,
+            SnapshotContactDisplayName = "John Doe",
+            SnapshotAmount = 42m,
+            SnapshotDonationDate = DateTime.UtcNow.Date,
+            SnapshotDonationType = "financial",
+            Status = GeneratedDocumentStatuses.Sent,
+            CreatedAt = DateTime.UtcNow.AddDays(-2)
+        };
+        dbContext.Users.Add(user);
+        dbContext.Organizations.Add(organization);
+        dbContext.GeneratedDocuments.Add(original);
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
+
+        var result = await controller.RegenerateGeneratedDocument(original.Id, CancellationToken.None);
+
+        var file = Assert.IsType<FileContentResult>(result);
+        Assert.Equal("application/pdf", file.ContentType);
+        Assert.NotEmpty(file.FileContents);
+
+        var docs = await dbContext.GeneratedDocuments
+            .Where(x => x.OrganizationId == organizationId)
+            .OrderBy(x => x.CreatedAt)
+            .ToListAsync();
+
+        Assert.Equal(2, docs.Count);
+        var cloned = docs[1];
+        Assert.NotEqual(original.Id, cloned.Id);
+        Assert.Equal(original.DocumentType, cloned.DocumentType);
+        Assert.Equal(original.SnapshotContactDisplayName, cloned.SnapshotContactDisplayName);
+        Assert.Equal(GeneratedDocumentStatuses.Generated, cloned.Status);
+        Assert.NotNull(cloned.GeneratedAt);
+    }
+
+    [Fact]
+    public async Task RegenerateGeneratedDocument_ReturnsNotFound_WhenDocumentOutOfOrganization()
+    {
+        using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var userId = Guid.NewGuid();
+        var user = CreateUser(userId, "owner@example.com");
+        var organizationId = Guid.NewGuid();
+        var organization = CreateOrganization(organizationId, userId, user);
+
+        var otherUser = CreateUser(Guid.NewGuid(), "other@example.com");
+        var otherOrgId = Guid.NewGuid();
+        var otherOrganization = CreateOrganization(otherOrgId, otherUser.Id, otherUser);
+        var otherDocument = new GeneratedDocument
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = otherOrgId,
+            DocumentType = DocumentType.PaymentAttestation,
+            SnapshotOrgName = "Other",
+            SnapshotContactDisplayName = "Other Contact",
+            SnapshotAmount = 10m,
+            SnapshotDonationDate = DateTime.UtcNow.Date,
+            SnapshotDonationType = "financial",
+            Status = GeneratedDocumentStatuses.Generated,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        dbContext.Users.AddRange(user, otherUser);
+        dbContext.Organizations.AddRange(organization, otherOrganization);
+        dbContext.GeneratedDocuments.Add(otherDocument);
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.RegenerateGeneratedDocument(otherDocument.Id, CancellationToken.None);
+
+        Assert.IsType<NotFoundObjectResult>(result);
     }
 }

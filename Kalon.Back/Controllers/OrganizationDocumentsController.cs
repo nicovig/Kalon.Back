@@ -1,6 +1,7 @@
 using Kalon.Back.Data;
 using Kalon.Back.DTOs;
 using Kalon.Back.Models;
+using Kalon.Back.Services.Mail;
 using Kalon.Back.Services.OrganizationAccess;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
@@ -14,7 +15,8 @@ namespace Kalon.Back.Controllers;
 [Authorize(Roles = "organization_master")]
 public class OrganizationDocumentsController(
     ApplicationDbContext dbContext,
-    IUserOrganizationAccessService userOrganizationAccess) : ControllerBase
+    IUserOrganizationAccessService userOrganizationAccess,
+    IDocumentGeneratorService documentGeneratorService) : ControllerBase
 {
     [HttpGet("generated-documents")]
     [ProducesResponseType(typeof(List<GeneratedDocumentLightResponse>), StatusCodes.Status200OK)]
@@ -119,6 +121,83 @@ public class OrganizationDocumentsController(
             return NotFound(new ApiMessageResponse { Message = "Generated document not found." });
 
         return Ok(detailedResult);
+    }
+
+    [HttpPost("generated-documents/{id:guid}/regenerate")]
+    [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RegenerateGeneratedDocument([FromRoute] Guid id, CancellationToken cancellationToken)
+    {
+        var userId = ResolveUserIdFromJwt();
+        if (userId is null)
+            return BadRequest(new ApiMessageResponse { Message = "userId is required." });
+
+        var access = await userOrganizationAccess.ResolveAsync(userId.Value, cancellationToken);
+        var resolved = access.ToActionResult();
+        if (!resolved.Success)
+            return resolved.Error!;
+
+        var organizationId = resolved.OrganizationId;
+        var sourceDocument = await dbContext.GeneratedDocuments
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.OrganizationId == organizationId && x.Id == id, cancellationToken);
+
+        if (sourceDocument is null)
+            return NotFound(new ApiMessageResponse { Message = "Generated document not found." });
+
+        var regeneratedDocument = new GeneratedDocument
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = sourceDocument.OrganizationId,
+            DocumentType = sourceDocument.DocumentType,
+            OrderNumber = sourceDocument.OrderNumber,
+            TaxReductionRate = sourceDocument.TaxReductionRate,
+            SnapshotOrgName = sourceDocument.SnapshotOrgName,
+            SnapshotOrgRna = sourceDocument.SnapshotOrgRna,
+            SnapshotOrgSiret = sourceDocument.SnapshotOrgSiret,
+            SnapshotOrgFiscalStatus = sourceDocument.SnapshotOrgFiscalStatus,
+            SnapshotOrgStreet = sourceDocument.SnapshotOrgStreet,
+            SnapshotOrgPostalCode = sourceDocument.SnapshotOrgPostalCode,
+            SnapshotOrgCity = sourceDocument.SnapshotOrgCity,
+            SnapshotContactDisplayName = sourceDocument.SnapshotContactDisplayName,
+            SnapshotContactAddress = sourceDocument.SnapshotContactAddress,
+            SnapshotContactSiret = sourceDocument.SnapshotContactSiret,
+            SnapshotAmount = sourceDocument.SnapshotAmount,
+            SnapshotDonationDate = sourceDocument.SnapshotDonationDate,
+            SnapshotDonationType = sourceDocument.SnapshotDonationType,
+            SignatureImagePath = sourceDocument.SignatureImagePath,
+            Status = GeneratedDocumentStatuses.Generated,
+            GeneratedAt = DateTime.UtcNow,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        dbContext.GeneratedDocuments.Add(regeneratedDocument);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        var pdfBytes = documentGeneratorService.GenerateSingle(new PrintPageData
+        {
+            Contact = new Contact
+            {
+                Kind = ContactKinds.Donor,
+                Firstname = sourceDocument.SnapshotContactDisplayName,
+                Lastname = string.Empty
+            },
+            Organization = new Organization
+            {
+                Name = sourceDocument.SnapshotOrgName,
+                Email = string.Empty,
+                RNA = sourceDocument.SnapshotOrgRna ?? string.Empty,
+                SIRET = sourceDocument.SnapshotOrgSiret ?? string.Empty,
+                FiscalStatus = sourceDocument.SnapshotOrgFiscalStatus ?? FiscalStatus.GeneralInterest
+            },
+            ResolvedHtml = string.Empty,
+            DocumentType = regeneratedDocument.DocumentType,
+            GeneratedDocument = regeneratedDocument
+        });
+
+        var fileName = $"{regeneratedDocument.DocumentType}-{regeneratedDocument.OrderNumber ?? regeneratedDocument.Id.ToString("N")}.pdf";
+        return File(pdfBytes, "application/pdf", fileName);
     }
 
     [HttpGet("mail-logs")]
