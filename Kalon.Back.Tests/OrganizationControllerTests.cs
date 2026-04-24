@@ -127,6 +127,62 @@ public class OrganizationControllerTests
     }
 
     [Fact]
+    public async Task Update_PersistsSendingPreferences_WhenProvided()
+    {
+        using var db = CreateDbContext(Guid.NewGuid().ToString());
+        var organizationId = Guid.NewGuid();
+        db.Organizations.Add(CreateOrganization(organizationId));
+        await db.SaveChangesAsync();
+
+        var controller = CreateController(db, organizationId);
+        var result = await controller.Update(new OrganizationUpdateRequestDto
+        {
+            Name = "Asso Demo",
+            Email = "contact@asso.org",
+            RNA = "W442009999",
+            SIRET = "12345678901234",
+            SendingPreferences = ["message", "tax_receipt", "membership_certificate"]
+        });
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = Assert.IsType<OrganizationResponseDto>(ok.Value);
+        Assert.Equal(
+            new[] { "message", "tax_receipt", "membership_certificate" },
+            payload.SendingPreferences);
+
+        var reloaded = await db.Organizations.FindAsync(organizationId);
+        Assert.NotNull(reloaded);
+        Assert.Equal(
+            new[] { "message", "tax_receipt", "membership_certificate" },
+            reloaded!.SendingPreferences);
+    }
+
+    [Fact]
+    public async Task Update_LeavesSendingPreferencesUnchanged_WhenPropertyIsNull()
+    {
+        using var db = CreateDbContext(Guid.NewGuid().ToString());
+        var organizationId = Guid.NewGuid();
+        var org = CreateOrganization(organizationId);
+        org.SendingPreferences = ["payment_attestation"];
+        db.Organizations.Add(org);
+        await db.SaveChangesAsync();
+
+        var controller = CreateController(db, organizationId);
+        var result = await controller.Update(new OrganizationUpdateRequestDto
+        {
+            Name = "Renamed",
+            Email = "contact@asso.org",
+            RNA = "W442009999",
+            SIRET = "12345678901234",
+            SendingPreferences = null
+        });
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = Assert.IsType<OrganizationResponseDto>(ok.Value);
+        Assert.Equal(new[] { "payment_attestation" }, payload.SendingPreferences);
+    }
+
+    [Fact]
     public async Task UpdateStatusSettings_CreatesSettingsAndReturnsTypedDto()
     {
         using var db = CreateDbContext(Guid.NewGuid().ToString());

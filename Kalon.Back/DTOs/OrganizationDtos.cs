@@ -29,6 +29,7 @@ public class OrganizationUpdateRequestDto
     public int? FoundedYear { get; set; }
     public string? ActivitySector { get; set; }
     public string? AudienceDescription { get; set; }
+    public List<string>? SendingPreferences { get; set; }
 }
 
 public class OrganizationStatusSettingsUpsertRequestDto
@@ -60,6 +61,7 @@ public class OrganizationResponseDto
     public int? FoundedYear { get; set; }
     public string? ActivitySector { get; set; }
     public string? AudienceDescription { get; set; }
+    public List<string> SendingPreferences { get; set; } = [];
     public OrganizationLogoResponseDto? Logo { get; set; }
     public ContactStatusSettingsResponseDto? ContactStatusSettings { get; set; }
 }

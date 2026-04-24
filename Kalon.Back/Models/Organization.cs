@@ -67,6 +67,8 @@ public class Organization
     // description du public cible — ex: "parrains et marraines de 40 à 70 ans"
     public string? AudienceDescription { get; set; }
 
+    public List<string> SendingPreferences { get; set; } = ["message", "tax_receipt", "payment_attestation", "membership_certificate"];
+
     // navigation collections
     public ICollection<Contact> Contacts { get; set; } = new List<Contact>();
     public ICollection<EmailTemplate> EmailTemplates { get; set; } = new List<EmailTemplate>();

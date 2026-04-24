@@ -75,7 +75,9 @@ public class OrganizationController : ControllerBase
         org.FoundedYear = organization.FoundedYear;
         org.ActivitySector = organization.ActivitySector;
         org.AudienceDescription = organization.AudienceDescription;
-
+        if (organization.SendingPreferences is not null)
+            org.SendingPreferences = [.. organization.SendingPreferences];
+        
         await _db.SaveChangesAsync();
         return Ok(ToResponseDto(org));
     }
@@ -147,6 +149,7 @@ public class OrganizationController : ControllerBase
             FoundedYear = org.FoundedYear,
             ActivitySector = org.ActivitySector,
             AudienceDescription = org.AudienceDescription,
+            SendingPreferences = [.. org.SendingPreferences],
             Logo = org.Logo is null
                 ? null
                 : new OrganizationLogoResponseDto

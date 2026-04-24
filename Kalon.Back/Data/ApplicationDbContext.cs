@@ -1,5 +1,8 @@
+using System.Text.Json;
 using Kalon.Back.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace Kalon.Back.Data;
 
@@ -32,6 +35,16 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<Organization>(entity =>
         {
             entity.ToTable("organizations");
+
+            var sendingPrefsConverter = new ValueConverter<List<string>, string>(
+                v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                v => DeserializeSendingPreferences(v));
+            entity.Property(o => o.SendingPreferences)
+                .HasConversion(sendingPrefsConverter)
+                .Metadata.SetValueComparer(new ValueComparer<List<string>>(
+                    (a, b) => (a == null && b == null) || (a != null && b != null && a.SequenceEqual(b)),
+                    c => c.Aggregate(17, (acc, x) => HashCode.Combine(acc, x.GetHashCode(StringComparison.Ordinal))),
+                    c => c.ToList()));
 
             // relation 1-1 avec User
             entity.HasOne(o => o.User)
@@ -206,5 +219,22 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
             entity.HasIndex(cb => new { cb.OrganizationId, cb.Kind });
         });
+    }
+
+    private static List<string> DeserializeSendingPreferences(string? v)
+    {
+        if (string.IsNullOrWhiteSpace(v))
+            return [];
+        try
+        {
+            var list = JsonSerializer.Deserialize<List<string>>(v);
+            if (list is not null)
+                return list;
+        }
+        catch (JsonException)
+        {
+        }
+
+        return [v.Trim()];
     }
 }
