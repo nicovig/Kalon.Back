@@ -49,4 +49,5 @@ public class MeranMembershipStatus
 {
     public bool IsActive { get; set; }
     public string? Plan { get; set; }
+    public Dictionary<string, string> Features { get; set; } = new();
 }

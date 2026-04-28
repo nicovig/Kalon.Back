@@ -121,7 +121,7 @@ public class AuthController: ControllerBase
                 }
             };
 
-            response.Token = _jwtTokenService.CreateToken(user, user.Organization.Id);
+            response.Token = _jwtTokenService.CreateToken(user, user.Organization.Id, meranStatus);
 
             return Ok(response);
         }
