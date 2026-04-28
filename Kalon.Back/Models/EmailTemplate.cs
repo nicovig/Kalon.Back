@@ -18,14 +18,14 @@ public class EmailTemplate
 
 public static class EmailTemplateTypes
 {
-    public const string Reminder = "reminder";
-    public const string ThankYou = "thank_you";
-    public const string Emergency = "emergency";
-    public const string Seasonal = "seasonal";
-    public const string Anniversary = "anniversary";
-    public const string Birthday = "birthday";
-    public const string Renewal = "renewal";
-    public const string Fidelisation = "fidelisation";
+    public const string Reminder = "chill_reminder";
+    public const string ThankYou = "thank_you_reminder";
+    public const string Emergency = "urgency_reminder";
+    public const string Seasonal = "seasonal_reminder";
+    public const string Renewal = "adhesion_renewal_reminder";
+    public const string Fidelisation = "fidelity_reminder";
+    public const string Anniversary = "anniversary_reminder";
+    public const string Birthday = "birthday_reminder";
     public const string Other = "other";
 
     public static readonly IReadOnlyList<string> All = new[]

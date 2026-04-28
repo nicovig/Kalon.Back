@@ -57,23 +57,6 @@ public class AIControllerTests
     }
 
     [Fact]
-    public async Task GenerateMail_ReturnsBadRequest_WhenUserContextMissing()
-    {
-        using var db = CreateDbContext(Guid.NewGuid().ToString());
-        var controller = CreateController(db, new FakeAiMailGeneratorService(), Guid.NewGuid());
-
-        var result = await controller.GenerateMail(new AiMailRequestDto
-        {
-            UserContext = "",
-            EmailType = EmailTemplateTypes.Reminder
-        });
-
-        var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
-        var payload = Assert.IsType<ApiMessageResponse>(badRequest.Value);
-        Assert.Equal("Le contexte est requis.", payload.Message);
-    }
-
-    [Fact]
     public async Task GenerateMail_ReturnsBadRequest_WhenEmailTypeInvalid()
     {
         using var db = CreateDbContext(Guid.NewGuid().ToString());

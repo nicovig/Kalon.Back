@@ -23,9 +23,6 @@ public class AIMailController(
     public async Task<ActionResult<AiMailResultDto>> GenerateMail(
         [FromBody] AiMailRequestDto dto)
     {
-        if (string.IsNullOrWhiteSpace(dto.UserContext))
-            return BadRequest(new ApiMessageResponse { Message = "Le contexte est requis." });
-
         if (!EmailTemplateTypes.IsValid(dto.EmailType))
             return BadRequest(new ApiMessageResponse { Message = "Type de mail invalide." });
 

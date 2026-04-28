@@ -125,13 +125,14 @@ public class AiMailGeneratorService : IAiMailGeneratorService
 
     private static string TranslateEmailType(string type) => type switch
     {
-        "reminder"     => "relance douce",
-        "thank_you"    => "remerciement",
-        "emergency"    => "appel d'urgence",
-        "seasonal"     => "message saisonnier",
-        "anniversary"  => "anniversaire de don",
-        "renewal"      => "renouvellement d'adhésion",
-        "fidelisation" => "fidélisation",
+        "chill_reminder" => "relance douce",
+        "thank_you_reminder" => "remerciement",
+        "urgency_reminder" => "appel d'urgence",
+        "seasonal_reminder" => "message saisonnier",
+        "adhesion_renewal_reminder" => "renouvellement d'adhésion",
+        "fidelity_reminder" => "fidélisation",
+        "birthday_reminder" => "anniversaire du profil",
+        "anniversary_reminder" => "anniversaire de la contribution financière",
         _              => "communication générale"
     };
 }
