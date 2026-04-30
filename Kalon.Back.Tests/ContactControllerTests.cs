@@ -15,17 +15,10 @@ namespace Kalon.Back.Tests;
 
 public class ContactControllerTests
 {
-    private sealed class FakeQuotaService : IQuotaService
-    {
-        public Task CheckAndIncrementAsync(Guid organizationId, string quotaType, int? limit, int increment = 1) => Task.CompletedTask;
-        public Task<int> GetCurrentCountAsync(Guid organizationId, string quotaType) => Task.FromResult(0);
-    }
-
     private static ContactController CreateController(ApplicationDbContext dbContext) =>
         new(
             dbContext,
             new UserOrganizationAccessService(dbContext),
-            new FakeQuotaService(),
             new PlanService(
                 new HttpContextAccessor(),
                 Options.Create(new PlanOptions())));

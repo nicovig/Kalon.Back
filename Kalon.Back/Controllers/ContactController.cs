@@ -13,7 +13,7 @@ namespace Kalon.Back.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize(Roles = "organization_master")]
-public class ContactController(ApplicationDbContext dbContext, IUserOrganizationAccessService userOrganizationAccess, IQuotaService _quotaService, PlanService _planService)
+public class ContactController(ApplicationDbContext dbContext, IUserOrganizationAccessService userOrganizationAccess, IPlanService planService)
     : ControllerBase
 {
     [HttpPost]
@@ -38,7 +38,7 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
         if (validationError is not null)
             return BadRequest(new ApiMessageResponse { Message = validationError });
 
-        var maxContacts = _planService.MaxContacts;
+        var maxContacts = planService.MaxContacts;
         if (maxContacts.HasValue)
         {
             var count = await dbContext.Contacts
@@ -47,7 +47,7 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
             if (count >= maxContacts.Value)
                 return StatusCode(403, new
                 {
-                    error = $"Limite de {maxContacts.Value} contacts atteinte sur le plan {_planService.PlanName}.",
+                    error = $"Limite de {maxContacts.Value} contacts atteinte sur le plan {planService.PlanName}.",
                     quotaType = QuotaTypes.Contacts,
                     current = count,
                     limit = maxContacts.Value,
