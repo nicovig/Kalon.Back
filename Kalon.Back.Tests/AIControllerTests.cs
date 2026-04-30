@@ -1,12 +1,15 @@
 using System.Security.Claims;
 using Kalon.Back.Controllers;
+using Kalon.Back.Configuration;
 using Kalon.Back.Data;
 using Kalon.Back.DTOs;
 using Kalon.Back.Models;
+using Kalon.Back.Services;
 using Kalon.Back.Services.Mail;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Kalon.Back.Tests;
 
@@ -42,16 +45,24 @@ public class AIControllerTests
         IAiMailGeneratorService aiService,
         Guid organizationId)
     {
-        var controller = new AIMailController(db, aiService);
+        var httpContext = new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(
+            [
+                new Claim("organization_id", organizationId.ToString()),
+                new Claim("plan_features", "{\"mail_ai\":\"true\"}")
+            ], "TestAuth"))
+        };
+
+        var controller = new AIMailController(
+            db,
+            aiService,
+            new PlanService(
+                new HttpContextAccessor { HttpContext = httpContext },
+                Options.Create(new PlanOptions { IaMailApplicationFeatureValue = "mail_ai" })));
         controller.ControllerContext = new ControllerContext
         {
-            HttpContext = new DefaultHttpContext
-            {
-                User = new ClaimsPrincipal(new ClaimsIdentity(
-                [
-                    new Claim("organization_id", organizationId.ToString())
-                ], "TestAuth"))
-            }
+            HttpContext = httpContext
         };
         return controller;
     }

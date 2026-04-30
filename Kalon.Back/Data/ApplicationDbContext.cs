@@ -18,6 +18,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<MailLog> MailLogs { get; set; }
     public DbSet<ContentBlock> ContentBlocks { get; set; }
     public DbSet<ContactStatusSettings> ContactStatusSettings { get; set; }
+    public DbSet<QuotaUsage> QuotaUsages { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -218,6 +219,23 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasIndex(cb => new { cb.OrganizationId, cb.Kind });
+        });
+
+        // ── QuotaUsages ──────────────────────────────────────────
+        modelBuilder.Entity<QuotaUsage>(entity =>
+        {
+            entity.ToTable("quota_usages");
+
+            entity.HasOne(q => q.Organization)
+                .WithMany()
+                .HasForeignKey(q => q.OrganizationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // index unique — une seule ligne par org/type/période
+            entity.HasIndex(q => new { q.OrganizationId, q.QuotaType, q.Period })
+                .IsUnique();
+
+            entity.HasIndex(q => q.OrganizationId);
         });
     }
 

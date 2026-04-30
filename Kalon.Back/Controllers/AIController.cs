@@ -1,6 +1,7 @@
-using Kalon.Back.DTOs;
 using Kalon.Back.Data;
+using Kalon.Back.DTOs;
 using Kalon.Back.Models;
+using Kalon.Back.Services;
 using Kalon.Back.Services.Mail;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -13,7 +14,8 @@ namespace Kalon.Back.Controllers;
 [Authorize(Roles = "organization_master")]
 public class AIMailController(
     ApplicationDbContext db,
-    IAiMailGeneratorService aiService) : ControllerBase
+    IAiMailGeneratorService aiService,
+    PlanService planService) : ControllerBase
 {
     [HttpPost("generate-mail")]
     [ProducesResponseType(typeof(AiMailResultDto), StatusCodes.Status200OK)]
@@ -27,6 +29,14 @@ public class AIMailController(
             return BadRequest(new ApiMessageResponse { Message = "Type de mail invalide." });
 
         var orgId = GetOrganizationId();
+
+        if (!planService.IaMailEnabled)
+            return StatusCode(403, new
+            {
+                error = "La génération IA nécessite le plan Basic ou Premium.",
+                feature = "mail_ai",
+                canUpgrade = true
+            });
 
         var org = await db.Organizations
             .FirstOrDefaultAsync(o => o.Id == orgId);

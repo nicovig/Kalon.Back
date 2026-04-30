@@ -1,6 +1,8 @@
 ﻿using Kalon.Back.Dtos;
+using Kalon.Back.Dtos.Errors;
 using Kalon.Back.DTOs;
 using Kalon.Back.Models;
+using Kalon.Back.Services;
 using Kalon.Back.Services.Mail;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -16,11 +18,18 @@ public class SendingController : ControllerBase
 {
     private readonly ISendingService _sendingService;
     private readonly IVariableResolverService _variableResolverService;
+    private readonly IQuotaService _quotaService;
+    private readonly PlanService _planService;
 
-    public SendingController(ISendingService sendingService, IVariableResolverService variableResolverService)
+    public SendingController(ISendingService sendingService, 
+        IVariableResolverService variableResolverService,
+        IQuotaService quotaService,
+        PlanService planService)
     {
         _sendingService = sendingService;
         _variableResolverService = variableResolverService;
+        _quotaService = quotaService;
+        _planService = planService;
     }
 
     [HttpGet("mail-editor-tags")]
@@ -55,10 +64,35 @@ public class SendingController : ControllerBase
             return BadRequest(new ApiMessageResponse { Message = "DocumentBodyHtml is required for document types." });
 
         var organizationId = GetOrganizationId();
+
+        await _quotaService.CheckAndIncrementAsync(
+            organizationId,
+            QuotaTypes.Emails,
+            _planService.MaxEmailsAnnual,
+            dto.RecipientIds.Count);
+
+        if (dto.DocumentType != DocumentType.Message)
+            await _quotaService.CheckAndIncrementAsync(
+                organizationId,
+                QuotaTypes.Documents,
+                _planService.MaxDocumentsAnnual,
+                dto.RecipientIds.Count);
+
         try
         {
             var result = await _sendingService.SendByEmailAsync(dto, organizationId);
             return Ok(result);
+        }
+        catch (QuotaExceededException qex)
+        {
+            return StatusCode(403, new
+            {
+                error = qex.Message,
+                quotaType = qex.QuotaType,
+                current = qex.Current,
+                limit = qex.Limit,
+                canUpgrade = true
+            });
         }
         catch (InvalidOperationException ex)
         {
@@ -94,12 +128,31 @@ public class SendingController : ControllerBase
             return BadRequest(new ApiMessageResponse { Message = "DocumentBodyHtml is required for document types." });
 
         var organizationId = GetOrganizationId();
+
+        if (dto.DocumentType != DocumentType.Message)
+            await _quotaService.CheckAndIncrementAsync(
+                organizationId,
+                QuotaTypes.Documents,
+                _planService.MaxDocumentsAnnual,
+                dto.RecipientIds.Count);
+
         try
         {
             var result = await _sendingService.GeneratePrintPdfAsync(dto, organizationId);
 
             return File(result.PdfBytes, "application/pdf",
                 $"courriers_{DateTime.Now:yyyyMMdd}.pdf");
+        }
+        catch (QuotaExceededException qex)
+        {
+            return StatusCode(403, new
+            {
+                error = qex.Message,
+                quotaType = qex.QuotaType,
+                current = qex.Current,
+                limit = qex.Limit,
+                canUpgrade = true
+            });
         }
         catch (InvalidOperationException ex)
         {

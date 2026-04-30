@@ -25,15 +25,15 @@ builder.Services.AddScoped<IDocumentGeneratorService, DocumentGeneratorService>(
 builder.Services.AddScoped<IVariableResolverService, VariableResolverService>();
 builder.Services.AddScoped<ISendingService, SendingService>();
 builder.Services.AddScoped<IAiMailGeneratorService, AiMailGeneratorService>();
+builder.Services.AddScoped<IQuotaService, QuotaService>();
 
-builder.Services.Configure<AnthropicOptions>(
-    builder.Configuration.GetSection(AnthropicOptions.Section));
-
-builder.Services.Configure<BrevoOptions>(
-    builder.Configuration.GetSection(BrevoOptions.Section));
+builder.Services.Configure<AnthropicOptions>(builder.Configuration.GetSection(AnthropicOptions.Section));
+builder.Services.Configure<BrevoOptions>(builder.Configuration.GetSection(BrevoOptions.Section));
+builder.Services.Configure<MeranOptions>(builder.Configuration.GetSection(MeranOptions.Section));
+builder.Services.Configure<PlanOptions>(builder.Configuration.GetSection(PlanOptions.Section));
 
 builder.Services.AddScoped<IMailService, MailService>();
-builder.Services.Configure<MeranOptions>(builder.Configuration.GetSection("MeranOptions"));
+
 builder.Services.AddHttpClient("MeranOAuth", client =>
 {
     client.Timeout = TimeSpan.FromSeconds(60);

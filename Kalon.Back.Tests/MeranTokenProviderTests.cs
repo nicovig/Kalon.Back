@@ -1,7 +1,9 @@
+using Kalon.Back.Configuration;
+using Kalon.Back.Services;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using System.Net;
 using System.Text;
-using Kalon.Back.Services;
-using Microsoft.Extensions.Options;
 
 namespace Kalon.Back.Tests;
 
@@ -41,6 +43,12 @@ public class MeranTokenProviderTests
     {
         using var handler = new OAuthTokenHandler();
         var factory = new StubFactory(handler);
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Application:ApplicationId"] = "kalon-app-id"
+            })
+            .Build();
         var options = new MeranOptions
         {
             TokenEndpoint = "https://idp.example.com/token",
@@ -48,7 +56,7 @@ public class MeranTokenProviderTests
             ClientSecret = "secret",
             Scope = "meran.api"
         };
-        var provider = new MeranTokenProvider(Options.Create(options), factory);
+        var provider = new MeranTokenProvider(Options.Create(options), factory, configuration);
 
         var t1 = await provider.GetBearerTokenAsync();
         var t2 = await provider.GetBearerTokenAsync();
@@ -61,6 +69,7 @@ public class MeranTokenProviderTests
     public async Task GetBearerTokenAsync_StaticToken_StripsBearerPrefix()
     {
         var factory = new StubFactory(new HttpClientHandler());
+        var configuration = new ConfigurationBuilder().Build();
         var options = new MeranOptions
         {
             TokenEndpoint = "",
@@ -68,7 +77,7 @@ public class MeranTokenProviderTests
             ClientSecret = "",
             ApiClientToken = "Bearer static-token"
         };
-        var provider = new MeranTokenProvider(Options.Create(options), factory);
+        var provider = new MeranTokenProvider(Options.Create(options), factory, configuration);
         var t = await provider.GetBearerTokenAsync();
         Assert.Equal("static-token", t);
     }
@@ -77,8 +86,9 @@ public class MeranTokenProviderTests
     public async Task GetBearerTokenAsync_NoAuth_Throws()
     {
         var factory = new StubFactory(new HttpClientHandler());
+        var configuration = new ConfigurationBuilder().Build();
         var options = new MeranOptions();
-        var provider = new MeranTokenProvider(Options.Create(options), factory);
+        var provider = new MeranTokenProvider(Options.Create(options), factory, configuration);
         await Assert.ThrowsAsync<InvalidOperationException>(() => provider.GetBearerTokenAsync());
     }
 }

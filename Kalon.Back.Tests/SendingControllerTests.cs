@@ -1,16 +1,25 @@
 using System.Security.Claims;
 using Kalon.Back.Controllers;
+using Kalon.Back.Configuration;
 using Kalon.Back.Dtos;
 using Kalon.Back.DTOs;
 using Kalon.Back.Models;
+using Kalon.Back.Services;
 using Kalon.Back.Services.Mail;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace Kalon.Back.Tests;
 
 public class SendingControllerTests
 {
+    private sealed class FakeQuotaService : IQuotaService
+    {
+        public Task CheckAndIncrementAsync(Guid organizationId, string quotaType, int? limit, int increment = 1) => Task.CompletedTask;
+        public Task<int> GetCurrentCountAsync(Guid organizationId, string quotaType) => Task.FromResult(0);
+    }
+
     private sealed class FakeSendingService : ISendingService
     {
         public bool ThrowOnPrint { get; set; }
@@ -62,16 +71,29 @@ public class SendingControllerTests
 
     private static SendingController CreateController(FakeSendingService service, Guid organizationId)
     {
-        var controller = new SendingController(service, new FakeVariableResolverService());
+        var httpContext = new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(
+            [
+                new Claim("organization_id", organizationId.ToString()),
+                new Claim("plan_features", "{\"max_annual_documents\":\"100\",\"max_annual_emails\":\"100\"}")
+            ], "TestAuth"))
+        };
+
+        var controller = new SendingController(
+            service,
+            new FakeVariableResolverService(),
+            new FakeQuotaService(),
+            new PlanService(
+                new HttpContextAccessor { HttpContext = httpContext },
+                Options.Create(new PlanOptions
+                {
+                    MaxDocumentsApplicationFeatureValue = "max_annual_documents",
+                    MaxEmailsApplicationFeatureValue = "max_annual_emails"
+                })));
         controller.ControllerContext = new ControllerContext
         {
-            HttpContext = new DefaultHttpContext
-            {
-                User = new ClaimsPrincipal(new ClaimsIdentity(
-                [
-                    new Claim("organization_id", organizationId.ToString())
-                ], "TestAuth"))
-            }
+            HttpContext = httpContext
         };
         return controller;
     }

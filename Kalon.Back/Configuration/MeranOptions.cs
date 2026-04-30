@@ -1,7 +1,9 @@
-namespace Kalon.Back.Services;
+namespace Kalon.Back.Configuration;
 
 public class MeranOptions
 {
+    public const string Section = "Meran";
+
     public string BaseUrl { get; set; } = string.Empty;
 
     public string? TokenEndpoint { get; set; }
