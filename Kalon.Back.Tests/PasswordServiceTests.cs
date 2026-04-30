@@ -1,9 +1,7 @@
-using System;
-using System.Collections.Generic;
-using BCrypt.Net;
 using Kalon.Back.Services;
 using Microsoft.Extensions.Options;
-using Xunit;
+
+namespace Kalon.Back.Tests;
 
 public class PasswordServiceTests
 {

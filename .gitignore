@@ -6,5 +6,6 @@ Kalon.Back.Tests/obj
 .env
 /Kalon.Back/appsettings.Development.json
 /Kalon.Back/appsettings.json
-/Kalon.Back/appsettings.Development.json
-/Kalon.Back/appsettings.Production.json
+.tmp-test-out
+.tmp-test-obj
+.tmp-test-bin

@@ -1,4 +1,5 @@
-using Kalon.Back.Dtos;
+using Kalon.Back.Configuration;
+using Kalon.Back.DTOs;
 using Microsoft.Extensions.Options;
 using System.Text.Json;
 
@@ -9,7 +10,7 @@ public class MeranClient(HttpClient httpClient, IOptions<MeranOptions> options, 
     private readonly MeranOptions _options = options.Value;
     private readonly IMeranTokenProvider _meranTokenProvider = meranTokenProvider;
 
-    public async Task<MeranMembershipStatusResponse> GetUserStatusAsync(Guid applicationId, Guid userId, CancellationToken cancellationToken = default)
+    public async Task<MeranMembershipStatus> GetUserStatusAsync(Guid applicationId, Guid userId, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(_options.BaseUrl))
             throw new InvalidOperationException("MeranOptions:BaseUrl is not configured.");
@@ -26,7 +27,7 @@ public class MeranClient(HttpClient httpClient, IOptions<MeranOptions> options, 
         response.EnsureSuccessStatusCode();
 
         using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        var meranResponse = await JsonSerializer.DeserializeAsync<MeranMembershipStatusResponse>(
+        var meranResponse = await JsonSerializer.DeserializeAsync<MeranMembershipStatus>(
             contentStream,
             new JsonSerializerOptions
             {

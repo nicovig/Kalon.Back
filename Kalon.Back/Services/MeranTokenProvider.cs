@@ -1,20 +1,28 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
+using Kalon.Back.Configuration;
 using Microsoft.Extensions.Options;
 
 namespace Kalon.Back.Services;
 
+public interface IMeranTokenProvider
+{
+    Task<string> GetBearerTokenAsync(CancellationToken cancellationToken = default);
+}
+
 public class MeranTokenProvider : IMeranTokenProvider
 {
     private readonly MeranOptions _options;
+    private readonly IConfiguration _configuration;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private string? _cachedAccessToken;
     private DateTimeOffset _cachedExpiresAtUtc;
 
-    public MeranTokenProvider(IOptions<MeranOptions> options, IHttpClientFactory httpClientFactory)
+    public MeranTokenProvider(IOptions<MeranOptions> options, IHttpClientFactory httpClientFactory, IConfiguration configuration)
     {
         _options = options.Value;
+        _configuration = configuration;
         _httpClientFactory = httpClientFactory;
     }
 
@@ -44,13 +52,13 @@ public class MeranTokenProvider : IMeranTokenProvider
             return NormalizeToRawBearer(_options.ApiClientToken);
 
         throw new InvalidOperationException(
-            "MeranOptions: configure TokenEndpoint + ClientId + ClientSecret for OAuth2 client credentials, or set ApiClientToken.");
+            "MeranOptions: configure TokenEndpoint + ApplicationId + ClientSecret for OAuth2 client credentials, or set ApiClientToken.");
     }
 
     private bool UsesClientCredentials()
     {
         return !string.IsNullOrWhiteSpace(_options.TokenEndpoint)
-               && !string.IsNullOrWhiteSpace(_options.ClientId)
+               && !string.IsNullOrWhiteSpace(_configuration["Application:ApplicationId"])
                && !string.IsNullOrWhiteSpace(_options.ClientSecret);
     }
 
@@ -60,7 +68,7 @@ public class MeranTokenProvider : IMeranTokenProvider
         var pairs = new List<KeyValuePair<string, string>>
         {
             new("grant_type", "client_credentials"),
-            new("client_id", _options.ClientId!),
+            new("client_id", _configuration["Application:ApplicationId"]!),
             new("client_secret", _options.ClientSecret!)
         };
         if (!string.IsNullOrWhiteSpace(_options.Scope))

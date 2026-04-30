@@ -1,13 +1,39 @@
+using Kalon.Back.Configuration;
 using Kalon.Back.Data;
 using Kalon.Back.Services;
-using System.Collections.Generic;
+using Kalon.Back.Services.Mail;
+using Kalon.Back.Services.Notification;
+using Kalon.Back.Services.OrganizationAccess;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using QuestPDF.Infrastructure;
+using System.Text;
 
-var builder = WebApplication.CreateBuilder(args);   
+QuestPDF.Settings.License = LicenseType.Community;
+
+// après les autres builder.Services...
+var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.Configure<PasswordOptions>(builder.Configuration.GetSection("Password"));
+builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.Section));
 builder.Services.AddScoped<IPasswordService, PasswordService>();
-builder.Services.Configure<MeranOptions>(builder.Configuration.GetSection("MeranOptions"));
+builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
+builder.Services.AddScoped<IUserOrganizationAccessService, UserOrganizationAccessService>();
+builder.Services.AddScoped<INotificationDashboardService, NotificationDashboardService>();
+builder.Services.AddScoped<IDocumentGeneratorService, DocumentGeneratorService>();
+builder.Services.AddScoped<IVariableResolverService, VariableResolverService>();
+builder.Services.AddScoped<ISendingService, SendingService>();
+builder.Services.AddScoped<IAiMailGeneratorService, AiMailGeneratorService>();
+builder.Services.AddScoped<IQuotaService, QuotaService>();
+
+builder.Services.Configure<AnthropicOptions>(builder.Configuration.GetSection(AnthropicOptions.Section));
+builder.Services.Configure<BrevoOptions>(builder.Configuration.GetSection(BrevoOptions.Section));
+builder.Services.Configure<MeranOptions>(builder.Configuration.GetSection(MeranOptions.Section));
+builder.Services.Configure<PlanOptions>(builder.Configuration.GetSection(PlanOptions.Section));
+
+builder.Services.AddScoped<IMailService, MailService>();
+
 builder.Services.AddHttpClient("MeranOAuth", client =>
 {
     client.Timeout = TimeSpan.FromSeconds(60);
@@ -16,7 +42,32 @@ builder.Services.AddSingleton<IMeranTokenProvider, MeranTokenProvider>();
 builder.Services.AddHttpClient<MeranClient>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.EnableAnnotations();
+});
+
+var jwtOptions = builder.Configuration.GetSection(JwtOptions.Section).Get<JwtOptions>()
+    ?? throw new InvalidOperationException("Jwt configuration is missing.");
+if (string.IsNullOrWhiteSpace(jwtOptions.SigningKey))
+    throw new InvalidOperationException("Jwt:SigningKey is required.");
+
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateIssuerSigningKey = true,
+            ValidateLifetime = true,
+            ValidIssuer = jwtOptions.Issuer,
+            ValidAudience = jwtOptions.Audience,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SigningKey)),
+            ClockSkew = TimeSpan.FromMinutes(1)
+        };
+    });
 
 builder.Services.AddCors(options =>
 {
@@ -73,6 +124,7 @@ app.UseHttpsRedirection();
 
 app.UseCors();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
