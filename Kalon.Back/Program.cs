@@ -26,6 +26,7 @@ builder.Services.AddScoped<IVariableResolverService, VariableResolverService>();
 builder.Services.AddScoped<ISendingService, SendingService>();
 builder.Services.AddScoped<IAiMailGeneratorService, AiMailGeneratorService>();
 builder.Services.AddScoped<IQuotaService, QuotaService>();
+builder.Services.AddScoped<IPlanService, PlanService>();
 
 builder.Services.Configure<AnthropicOptions>(builder.Configuration.GetSection(AnthropicOptions.Section));
 builder.Services.Configure<BrevoOptions>(builder.Configuration.GetSection(BrevoOptions.Section));

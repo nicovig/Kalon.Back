@@ -4,7 +4,20 @@ using System.Text.Json;
 
 namespace Kalon.Back.Services;
 
-public class PlanService
+public interface IPlanService
+{
+    string PlanName { get; }
+    int? MaxContacts { get; }
+    int? MaxEmailsAnnual { get; }
+    int? MaxDocumentsAnnual { get; }
+    int? ArchivesAnnual { get; }
+    int? DonorsSearchCountLimit { get; }
+    decimal SearchQueryCost { get; }
+    decimal SearchDetailCost { get; }
+    bool IaMailEnabled { get; }
+}
+
+public class PlanService : IPlanService
 {
     private readonly IHttpContextAccessor _httpContext;
     private readonly PlanOptions _planOptions;

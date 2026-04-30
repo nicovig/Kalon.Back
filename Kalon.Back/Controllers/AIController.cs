@@ -12,11 +12,21 @@ namespace Kalon.Back.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize(Roles = "organization_master")]
-public class AIMailController(
-    ApplicationDbContext db,
-    IAiMailGeneratorService aiService,
-    PlanService planService) : ControllerBase
+public class AIMailController : ControllerBase
 {
+    private readonly ApplicationDbContext _db;
+    private readonly IAiMailGeneratorService _aiService;
+    private readonly IPlanService _planService;
+
+    public AIMailController(ApplicationDbContext db,
+        IAiMailGeneratorService aiService,
+        IPlanService planService)
+    {
+        _db = db;
+        _aiService = aiService;
+        _planService = planService;
+    }
+
     [HttpPost("generate-mail")]
     [ProducesResponseType(typeof(AiMailResultDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
@@ -30,7 +40,7 @@ public class AIMailController(
 
         var orgId = GetOrganizationId();
 
-        if (!planService.IaMailEnabled)
+        if (!_planService.IaMailEnabled)
             return StatusCode(403, new
             {
                 error = "La génération IA nécessite le plan Basic ou Premium.",
@@ -38,7 +48,7 @@ public class AIMailController(
                 canUpgrade = true
             });
 
-        var org = await db.Organizations
+        var org = await _db.Organizations
             .FirstOrDefaultAsync(o => o.Id == orgId);
 
         if (org is null)
@@ -46,7 +56,7 @@ public class AIMailController(
 
         try
         {
-            var result = await aiService.GenerateAsync(dto, org);
+            var result = await _aiService.GenerateAsync(dto, org);
             return Ok(result);
         }
         catch (InvalidOperationException ex)

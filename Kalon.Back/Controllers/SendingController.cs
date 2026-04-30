@@ -19,7 +19,7 @@ public class SendingController : ControllerBase
     private readonly ISendingService _sendingService;
     private readonly IVariableResolverService _variableResolverService;
     private readonly IQuotaService _quotaService;
-    private readonly PlanService _planService;
+    private readonly IPlanService _planService;
 
     public SendingController(ISendingService sendingService, 
         IVariableResolverService variableResolverService,
