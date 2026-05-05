@@ -116,7 +116,7 @@ public class ContactControllerTests
 
         var controller = CreateController(dbContext);
         SetAuthenticatedUser(controller, userId);
-        var request = new Contact
+        var request = new ContactCreateRequest
         {
             Kind = ContactKinds.Donor,
             Firstname = "New",
@@ -196,7 +196,7 @@ public class ContactControllerTests
 
         var controller = CreateController(dbContext);
         SetAuthenticatedUser(controller, userId);
-        var request = new Contact
+        var request = new ContactCreateRequest
         {
             Kind = ContactKinds.Member,
             Firstname = "After",
@@ -228,7 +228,7 @@ public class ContactControllerTests
 
         var controller = CreateController(dbContext);
         SetAuthenticatedUser(controller, userId);
-        var request = new Contact
+        var request = new ContactCreateRequest
         {
             Kind = "invalid_kind",
             Firstname = "After",
@@ -392,4 +392,72 @@ public class ContactControllerTests
         Assert.Equal(15m, aggregated.LastDonationAmount);
         Assert.Equal(10m, aggregated.AverageDonationAmount);
     }
+
+    [Fact]
+    public async Task CreateBulk_ReturnsCreatedIds_WhenRequestIsValid()
+    {
+        using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var userId = Guid.NewGuid();
+        var user = CreateUser(userId, "owner@example.com");
+        var organization = CreateOrganization(Guid.NewGuid(), userId, user);
+        dbContext.Users.Add(user);
+        dbContext.Organizations.Add(organization);
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.CreateBulk(new ContactBulkCreateRequest
+        {
+            Items =
+            [
+                new ContactCreateRequest
+                {
+                    Kind = ContactKinds.Donor,
+                    Firstname = "A",
+                    Lastname = "One"
+                },
+                new ContactCreateRequest
+                {
+                    Kind = ContactKinds.Member,
+                    Firstname = "B",
+                    Lastname = "Two"
+                }
+            ]
+        }, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var payload = Assert.IsType<ContactBulkCreateResponse>(ok.Value);
+        Assert.Equal(2, payload.CreatedCount);
+        Assert.Equal(2, payload.CreatedIds.Count);
+    }
+
+    [Fact]
+    public async Task CreateBulk_ReturnsBadRequest_WhenAnyItemInvalid()
+    {
+        using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var userId = Guid.NewGuid();
+        var user = CreateUser(userId, "owner@example.com");
+        var organization = CreateOrganization(Guid.NewGuid(), userId, user);
+        dbContext.Users.Add(user);
+        dbContext.Organizations.Add(organization);
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.CreateBulk(new ContactBulkCreateRequest
+        {
+            Items =
+            [
+                new ContactCreateRequest
+                {
+                    Kind = "invalid_kind",
+                    Firstname = "A",
+                    Lastname = "One"
+                }
+            ]
+        }, CancellationToken.None);
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
 }

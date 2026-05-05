@@ -17,6 +17,7 @@ public class DonationController(ApplicationDbContext dbContext, IUserOrganizatio
 {
     private const int DefaultPageSize = 50;
     private const int MaxPageSize = 200;
+    private const int MaxBulkCreateItems = 500;
 
     private static readonly HashSet<string> AllowedDonationTypes = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -29,7 +30,7 @@ public class DonationController(ApplicationDbContext dbContext, IUserOrganizatio
     [ProducesResponseType(typeof(DonationResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Create([FromBody] Donation request,
+    public async Task<IActionResult> Create([FromBody] DonationCreateRequest request,
         CancellationToken cancellationToken)
     {
         var userId = ResolveUserIdFromJwt();
@@ -60,6 +61,76 @@ public class DonationController(ApplicationDbContext dbContext, IUserOrganizatio
 
         var details = await ProjectDonationAsync(donation.Id, organizationId, cancellationToken);
         return CreatedAtAction(nameof(GetById), new { id = donation.Id }, details);
+    }
+
+    [HttpPost("bulk")]
+    [ProducesResponseType(typeof(DonationBulkCreateResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> CreateBulk([FromBody] DonationBulkCreateRequest request,
+        CancellationToken cancellationToken)
+    {
+        var userId = ResolveUserIdFromJwt();
+        if (userId is null)
+            return BadRequest(new ApiMessageResponse { Message = "userId is required." });
+
+        var access = await userOrganizationAccess.ResolveAsync(userId.Value, cancellationToken);
+        var resolved = access.ToActionResult();
+        if (!resolved.Success)
+            return resolved.Error!;
+
+        var organizationId = resolved.OrganizationId;
+
+        if (request.Items.Count == 0)
+            return BadRequest(new ApiMessageResponse { Message = "Items is required." });
+
+        if (request.Items.Count > MaxBulkCreateItems)
+            return BadRequest(new ApiMessageResponse { Message = $"Maximum {MaxBulkCreateItems} donations per request." });
+
+        for (var i = 0; i < request.Items.Count; i++)
+        {
+            var item = request.Items[i];
+            var validationError = ValidateRequest(item);
+            if (validationError is not null)
+                return BadRequest(new ApiMessageResponse { Message = $"Item {i}: {validationError}" });
+        }
+
+        var distinctContactIds = request.Items
+            .Select(i => i.ContactId)
+            .Distinct()
+            .ToList();
+
+        var validContactsCount = await dbContext.Contacts
+            .AsNoTracking()
+            .Where(c => c.OrganizationId == organizationId && distinctContactIds.Contains(c.Id))
+            .Select(c => c.Id)
+            .Distinct()
+            .CountAsync(cancellationToken);
+
+        if (validContactsCount != distinctContactIds.Count)
+            return BadRequest(new ApiMessageResponse { Message = "One or more contacts were not found for organization." });
+
+        var createdIds = new List<Guid>(request.Items.Count);
+        foreach (var item in request.Items)
+        {
+            var donation = new Donation
+            {
+                Id = Guid.NewGuid(),
+                OrganizationId = organizationId,
+                CreatedAt = DateTime.UtcNow
+            };
+            ApplyRequest(donation, item);
+            createdIds.Add(donation.Id);
+            dbContext.Donations.Add(donation);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return Ok(new DonationBulkCreateResponse
+        {
+            CreatedCount = createdIds.Count,
+            CreatedIds = createdIds
+        });
     }
 
     [HttpGet]
@@ -203,7 +274,7 @@ public class DonationController(ApplicationDbContext dbContext, IUserOrganizatio
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Update([FromRoute] Guid id,
-        [FromBody] Donation request, CancellationToken cancellationToken)
+        [FromBody] DonationCreateRequest request, CancellationToken cancellationToken)
     {
         var userId = ResolveUserIdFromJwt();
         if (userId is null)
@@ -243,8 +314,7 @@ public class DonationController(ApplicationDbContext dbContext, IUserOrganizatio
         return null;
     }
 
-    private async Task<string?> ValidateRequestAsync(Guid organizationId, Donation request,
-        CancellationToken cancellationToken)
+    private static string? ValidateRequest(DonationCreateRequest request)
     {
         if (request.ContactId == Guid.Empty)
             return "ContactId is required.";
@@ -254,6 +324,15 @@ public class DonationController(ApplicationDbContext dbContext, IUserOrganizatio
             return "DonationType is required.";
         if (!AllowedDonationTypes.Contains(request.DonationType.Trim()))
             return "Invalid donation type.";
+        return null;
+    }
+
+    private async Task<string?> ValidateRequestAsync(Guid organizationId, DonationCreateRequest request,
+        CancellationToken cancellationToken)
+    {
+        var validationError = ValidateRequest(request);
+        if (validationError is not null)
+            return validationError;
 
         var contactExists = await dbContext.Contacts
             .AsNoTracking()
@@ -265,7 +344,7 @@ public class DonationController(ApplicationDbContext dbContext, IUserOrganizatio
         return null;
     }
 
-    private static void ApplyRequest(Donation donation, Donation request)
+    private static void ApplyRequest(Donation donation, DonationCreateRequest request)
     {
         donation.ContactId = request.ContactId;
         donation.Amount = request.Amount;

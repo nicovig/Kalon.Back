@@ -34,3 +34,25 @@ public class DonationListResponse
     public int PageSize { get; set; }
     public int TotalPages { get; set; }
 }
+
+public class DonationCreateRequest
+{
+    public Guid ContactId { get; set; }
+    public decimal Amount { get; set; }
+    public DateTime Date { get; set; }
+    public string DonationType { get; set; } = string.Empty;
+    public string? PaymentMethod { get; set; }
+    public string? Notes { get; set; }
+    public bool IsAnonymous { get; set; }
+}
+
+public class DonationBulkCreateRequest
+{
+    public List<DonationCreateRequest> Items { get; set; } = [];
+}
+
+public class DonationBulkCreateResponse
+{
+    public int CreatedCount { get; set; }
+    public List<Guid> CreatedIds { get; set; } = [];
+}

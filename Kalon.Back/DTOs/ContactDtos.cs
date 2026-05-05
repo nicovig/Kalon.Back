@@ -29,3 +29,31 @@ public class ContactResponse
     public decimal AverageDonationAmount { get; set; }
     public int DonationCount { get; set; }
 }
+
+public class ContactCreateRequest
+{
+    public string Kind { get; set; } = string.Empty;
+    public string Firstname { get; set; } = string.Empty;
+    public string Lastname { get; set; } = string.Empty;
+    public string? Email { get; set; }
+    public string? Phone { get; set; }
+    public string? JobTitle { get; set; }
+    public DateTime? BirthDate { get; set; }
+    public string? Gender { get; set; }
+    public string? Notes { get; set; }
+    public string? Department { get; set; }
+    public string? PreferredFrequencySendingReceipt { get; set; }
+    public ContactAddress? Address { get; set; }
+    public ContactEnterprise? Enterprise { get; set; }
+}
+
+public class ContactBulkCreateRequest
+{
+    public List<ContactCreateRequest> Items { get; set; } = [];
+}
+
+public class ContactBulkCreateResponse
+{
+    public int CreatedCount { get; set; }
+    public List<Guid> CreatedIds { get; set; } = [];
+}

@@ -16,11 +16,13 @@ namespace Kalon.Back.Controllers;
 public class ContactController(ApplicationDbContext dbContext, IUserOrganizationAccessService userOrganizationAccess, IPlanService planService)
     : ControllerBase
 {
+    private const int MaxBulkCreateItems = 500;
+
     [HttpPost]
     [ProducesResponseType(typeof(ContactResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Create([FromBody] Contact request,
+    public async Task<IActionResult> Create([FromBody] ContactCreateRequest request,
         CancellationToken cancellationToken)
     {
         var userId = ResolveUserIdFromJwt();
@@ -71,6 +73,76 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
             .FirstAsync(cancellationToken);
 
         return CreatedAtAction(nameof(GetById), new { id = contact.Id }, result);
+    }
+
+    [HttpPost("bulk")]
+    [ProducesResponseType(typeof(ContactBulkCreateResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> CreateBulk([FromBody] ContactBulkCreateRequest request,
+        CancellationToken cancellationToken)
+    {
+        var userId = ResolveUserIdFromJwt();
+        if (userId is null)
+            return BadRequest(new ApiMessageResponse { Message = "userId is required." });
+
+        var access = await userOrganizationAccess.ResolveAsync(userId.Value, cancellationToken);
+        var resolved = access.ToActionResult();
+        if (!resolved.Success)
+            return resolved.Error!;
+
+        var organizationId = resolved.OrganizationId;
+
+        if (request.Items.Count == 0)
+            return BadRequest(new ApiMessageResponse { Message = "Items is required." });
+
+        if (request.Items.Count > MaxBulkCreateItems)
+            return BadRequest(new ApiMessageResponse { Message = $"Maximum {MaxBulkCreateItems} contacts per request." });
+
+        for (var i = 0; i < request.Items.Count; i++)
+        {
+            var validationError = ValidateRequest(request.Items[i]);
+            if (validationError is not null)
+                return BadRequest(new ApiMessageResponse { Message = $"Item {i}: {validationError}" });
+        }
+
+        var maxContacts = planService.MaxContacts;
+        if (maxContacts.HasValue)
+        {
+            var count = await dbContext.Contacts
+                .CountAsync(c => c.OrganizationId == organizationId && !c.IsOut, cancellationToken);
+            if (count + request.Items.Count > maxContacts.Value)
+                return StatusCode(403, new
+                {
+                    error = $"Limite de {maxContacts.Value} contacts atteinte sur le plan {planService.PlanName}.",
+                    quotaType = QuotaTypes.Contacts,
+                    current = count,
+                    limit = maxContacts.Value,
+                    canUpgrade = true
+                });
+        }
+
+        var createdIds = new List<Guid>(request.Items.Count);
+        foreach (var item in request.Items)
+        {
+            var contact = new Contact
+            {
+                Id = Guid.NewGuid(),
+                OrganizationId = organizationId,
+                CreatedAt = DateTime.UtcNow
+            };
+            ApplyRequest(contact, item);
+            createdIds.Add(contact.Id);
+            dbContext.Contacts.Add(contact);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return Ok(new ContactBulkCreateResponse
+        {
+            CreatedCount = createdIds.Count,
+            CreatedIds = createdIds
+        });
     }
 
     [HttpGet]
@@ -131,7 +203,7 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Update([FromRoute] Guid id,
-        [FromBody] Contact request, CancellationToken cancellationToken)
+        [FromBody] ContactCreateRequest request, CancellationToken cancellationToken)
     {
         var userId = ResolveUserIdFromJwt();
         if (userId is null)
@@ -167,7 +239,7 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
         return Ok(result);
     }
 
-    private static string? ValidateRequest(Contact request)
+    private static string? ValidateRequest(ContactCreateRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Firstname) || string.IsNullOrWhiteSpace(request.Lastname))
             return "Firstname and lastname are required.";
@@ -176,7 +248,7 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
         return null;
     }
 
-    private static void ApplyRequest(Contact contact, Contact request)
+    private static void ApplyRequest(Contact contact, ContactCreateRequest request)
     {
         contact.Kind = request.Kind.Trim();
         contact.Firstname = request.Firstname.Trim();
