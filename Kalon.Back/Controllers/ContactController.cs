@@ -65,6 +65,7 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
         };
         ApplyRequest(contact, request);
 
+        
         dbContext.Contacts.Add(contact);
         await dbContext.SaveChangesAsync(cancellationToken);
 

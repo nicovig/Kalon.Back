@@ -1,5 +1,6 @@
 ﻿using Kalon.Back.Configuration;
 using Microsoft.Extensions.Options;
+using System.Globalization;
 using System.Text.Json;
 
 namespace Kalon.Back.Services;
@@ -66,17 +67,34 @@ public class PlanService : IPlanService
 
     // ── Helpers privés ────────────────────────────────────────────
 
-    private Dictionary<string, string> GetFeatures()
+    private Dictionary<string, string?> GetFeatures()
     {
         var json = GetClaim("plan_features") ?? "{}";
         try
         {
-            return JsonSerializer.Deserialize<Dictionary<string, string>>(json)
-                ?? new Dictionary<string, string>();
+            using var document = JsonDocument.Parse(json);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+                return new Dictionary<string, string?>();
+
+            var features = new Dictionary<string, string?>(StringComparer.Ordinal);
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                features[property.Name] = property.Value.ValueKind switch
+                {
+                    JsonValueKind.String => property.Value.GetString(),
+                    JsonValueKind.Number => property.Value.GetRawText(),
+                    JsonValueKind.True => "true",
+                    JsonValueKind.False => "false",
+                    JsonValueKind.Null => null,
+                    _ => property.Value.GetRawText()
+                };
+            }
+
+            return features;
         }
         catch
         {
-            return new Dictionary<string, string>();
+            return new Dictionary<string, string?>();
         }
     }
 
@@ -85,24 +103,52 @@ public class PlanService : IPlanService
 
     private int? ParseNullableInt(string featureKey)
     {
-        var val = GetFeatures().GetValueOrDefault(featureKey);
-        if (val == null || val == "null") return null;
-        return int.TryParse(val, out var i) ? i : null;
+        var val = NormalizeFeatureValue(GetFeatures().GetValueOrDefault(featureKey));
+        if (string.IsNullOrWhiteSpace(val))
+            return null;
+        return int.TryParse(val, NumberStyles.Integer, CultureInfo.InvariantCulture, out var i) ? i : null;
     }
 
     private bool ParseBool(string featureKey)
     {
-        var val = GetFeatures().GetValueOrDefault(featureKey, "false");
-        return val == "true";
+        var val = NormalizeFeatureValue(GetFeatures().GetValueOrDefault(featureKey));
+        return string.Equals(val, "true", StringComparison.OrdinalIgnoreCase);
     }
 
     private decimal ParseDecimal(string featureKey, decimal defaultValue = 0)
     {
-        var val = GetFeatures().GetValueOrDefault(featureKey);
-        if (val == null || val == "null") return defaultValue;
+        var val = NormalizeFeatureValue(GetFeatures().GetValueOrDefault(featureKey));
+        if (string.IsNullOrWhiteSpace(val))
+            return defaultValue;
+
         return decimal.TryParse(val,
-            System.Globalization.NumberStyles.Any,
-            System.Globalization.CultureInfo.InvariantCulture,
+            NumberStyles.Any,
+            CultureInfo.InvariantCulture,
             out var d) ? d : defaultValue;
+    }
+
+    private static string? NormalizeFeatureValue(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        var normalized = value.Trim();
+
+        if (normalized.Length >= 2 && normalized[0] == '"' && normalized[^1] == '"')
+        {
+            try
+            {
+                normalized = JsonSerializer.Deserialize<string>(normalized) ?? normalized[1..^1];
+            }
+            catch
+            {
+                normalized = normalized[1..^1];
+            }
+        }
+
+        if (string.Equals(normalized, "null", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        return normalized;
     }
 }
