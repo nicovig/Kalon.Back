@@ -22,6 +22,7 @@ public class PlanService : IPlanService
 {
     private readonly IHttpContextAccessor _httpContext;
     private readonly PlanOptions _planOptions;
+    private Dictionary<string, string?>? _cachedFeatures;
 
     public PlanService(IHttpContextAccessor httpContext, IOptions<PlanOptions> planOptions)
     {
@@ -69,32 +70,19 @@ public class PlanService : IPlanService
 
     private Dictionary<string, string?> GetFeatures()
     {
+        if (_cachedFeatures is not null)
+            return _cachedFeatures;
+
         var json = GetClaim("plan_features") ?? "{}";
         try
         {
-            using var document = JsonDocument.Parse(json);
-            if (document.RootElement.ValueKind != JsonValueKind.Object)
-                return new Dictionary<string, string?>();
-
-            var features = new Dictionary<string, string?>(StringComparer.Ordinal);
-            foreach (var property in document.RootElement.EnumerateObject())
-            {
-                features[property.Name] = property.Value.ValueKind switch
-                {
-                    JsonValueKind.String => property.Value.GetString(),
-                    JsonValueKind.Number => property.Value.GetRawText(),
-                    JsonValueKind.True => "true",
-                    JsonValueKind.False => "false",
-                    JsonValueKind.Null => null,
-                    _ => property.Value.GetRawText()
-                };
-            }
-
-            return features;
+            _cachedFeatures = ParseFeaturesJson(json);
+            return _cachedFeatures;
         }
         catch
         {
-            return new Dictionary<string, string?>();
+            _cachedFeatures = new Dictionary<string, string?>();
+            return _cachedFeatures;
         }
     }
 
@@ -103,21 +91,28 @@ public class PlanService : IPlanService
 
     private int? ParseNullableInt(string featureKey)
     {
-        var val = NormalizeFeatureValue(GetFeatures().GetValueOrDefault(featureKey));
+        var val = NormalizeFeatureValue(GetFeatureValue(featureKey));
         if (string.IsNullOrWhiteSpace(val))
             return null;
-        return int.TryParse(val, NumberStyles.Integer, CultureInfo.InvariantCulture, out var i) ? i : null;
+
+        if (int.TryParse(val, NumberStyles.Integer | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var parsed))
+            return parsed;
+
+        var unescaped = val.Trim().Trim('"', '\\', '\'');
+        return int.TryParse(unescaped, NumberStyles.Integer | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out parsed)
+            ? parsed
+            : null;
     }
 
     private bool ParseBool(string featureKey)
     {
-        var val = NormalizeFeatureValue(GetFeatures().GetValueOrDefault(featureKey));
+        var val = NormalizeFeatureValue(GetFeatureValue(featureKey));
         return string.Equals(val, "true", StringComparison.OrdinalIgnoreCase);
     }
 
     private decimal ParseDecimal(string featureKey, decimal defaultValue = 0)
     {
-        var val = NormalizeFeatureValue(GetFeatures().GetValueOrDefault(featureKey));
+        var val = NormalizeFeatureValue(GetFeatureValue(featureKey));
         if (string.IsNullOrWhiteSpace(val))
             return defaultValue;
 
@@ -150,5 +145,51 @@ public class PlanService : IPlanService
             return null;
 
         return normalized;
+    }
+
+    private string? GetFeatureValue(string featureKey)
+    {
+        var fromFeatures = GetFeatures().GetValueOrDefault(featureKey);
+        if (!string.IsNullOrWhiteSpace(fromFeatures))
+            return fromFeatures;
+        return GetClaim(featureKey);
+    }
+
+    private static Dictionary<string, string?> ParseFeaturesJson(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+
+        if (document.RootElement.ValueKind == JsonValueKind.String)
+        {
+            var innerJson = document.RootElement.GetString();
+            if (string.IsNullOrWhiteSpace(innerJson))
+                return new Dictionary<string, string?>();
+            using var innerDocument = JsonDocument.Parse(innerJson);
+            return ReadFeaturesObject(innerDocument.RootElement);
+        }
+
+        return ReadFeaturesObject(document.RootElement);
+    }
+
+    private static Dictionary<string, string?> ReadFeaturesObject(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Object)
+            return new Dictionary<string, string?>();
+
+        var features = new Dictionary<string, string?>(StringComparer.Ordinal);
+        foreach (var property in root.EnumerateObject())
+        {
+            features[property.Name] = property.Value.ValueKind switch
+            {
+                JsonValueKind.String => property.Value.GetString(),
+                JsonValueKind.Number => property.Value.GetRawText(),
+                JsonValueKind.True => "true",
+                JsonValueKind.False => "false",
+                JsonValueKind.Null => null,
+                _ => property.Value.GetRawText()
+            };
+        }
+
+        return features;
     }
 }
