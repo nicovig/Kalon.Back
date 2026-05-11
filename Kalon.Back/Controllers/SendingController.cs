@@ -7,7 +7,6 @@ using Kalon.Back.Services.Mail;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
-using System.Security.Claims;
 
 namespace Kalon.Back.Controllers;
 
@@ -24,7 +23,7 @@ public class SendingController : ControllerBase
     public SendingController(ISendingService sendingService, 
         IVariableResolverService variableResolverService,
         IQuotaService quotaService,
-        PlanService planService)
+        IPlanService planService)
     {
         _sendingService = sendingService;
         _variableResolverService = variableResolverService;

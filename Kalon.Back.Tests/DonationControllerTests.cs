@@ -115,7 +115,7 @@ public class DonationControllerTests
 
         var controller = CreateController(dbContext);
         SetAuthenticatedUser(controller, userId);
-        var request = new Donation
+        var request = new DonationCreateRequest
         {
             ContactId = contact.Id,
             Amount = 120.50m,
@@ -155,7 +155,7 @@ public class DonationControllerTests
 
         var controller = CreateController(dbContext);
         SetAuthenticatedUser(controller, userId);
-        var request = new Donation
+        var request = new DonationCreateRequest
         {
             ContactId = otherContact.Id,
             Amount = 100m,
@@ -401,7 +401,7 @@ public class DonationControllerTests
 
         var controller = CreateController(dbContext);
         SetAuthenticatedUser(controller, userId);
-        var request = new Donation
+        var request = new DonationCreateRequest
         {
             ContactId = contact.Id,
             Amount = 75m,
@@ -419,5 +419,80 @@ public class DonationControllerTests
         Assert.Equal(75m, payload.Amount);
         Assert.Equal("sponsoring", payload.DonationType);
         Assert.True(payload.IsAnonymous);
+    }
+
+    [Fact]
+    public async Task CreateBulk_ReturnsOk_WhenRequestIsValid()
+    {
+        using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var userId = Guid.NewGuid();
+        var user = CreateUser(userId, "owner@example.com");
+        var organizationId = Guid.NewGuid();
+        var organization = CreateOrganization(organizationId, userId, user);
+        var contact = CreateContact(Guid.NewGuid(), organizationId, "Donor", "One");
+        dbContext.Users.Add(user);
+        dbContext.Organizations.Add(organization);
+        dbContext.Contacts.Add(contact);
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.CreateBulk(new DonationBulkCreateRequest
+        {
+            Items =
+            [
+                new DonationCreateRequest
+                {
+                    ContactId = contact.Id,
+                    Amount = 10m,
+                    Date = DateTime.UtcNow.Date,
+                    DonationType = "financial"
+                },
+                new DonationCreateRequest
+                {
+                    ContactId = contact.Id,
+                    Amount = 20m,
+                    Date = DateTime.UtcNow.Date,
+                    DonationType = "in_kind"
+                }
+            ]
+        }, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var payload = Assert.IsType<DonationBulkCreateResponse>(ok.Value);
+        Assert.Equal(2, payload.CreatedCount);
+        Assert.Equal(2, payload.CreatedIds.Count);
+    }
+
+    [Fact]
+    public async Task CreateBulk_ReturnsBadRequest_WhenItemsExceedLimit()
+    {
+        using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var userId = Guid.NewGuid();
+        var user = CreateUser(userId, "owner@example.com");
+        var organizationId = Guid.NewGuid();
+        var organization = CreateOrganization(organizationId, userId, user);
+        var contact = CreateContact(Guid.NewGuid(), organizationId, "Donor", "One");
+        dbContext.Users.Add(user);
+        dbContext.Organizations.Add(organization);
+        dbContext.Contacts.Add(contact);
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.CreateBulk(new DonationBulkCreateRequest
+        {
+            Items = Enumerable.Range(1, 501)
+                .Select(_ => new DonationCreateRequest
+                {
+                    ContactId = contact.Id,
+                    Amount = 5m,
+                    Date = DateTime.UtcNow.Date,
+                    DonationType = "financial"
+                })
+                .ToList()
+        }, CancellationToken.None);
+
+        Assert.IsType<BadRequestObjectResult>(result);
     }
 }

@@ -52,7 +52,6 @@ public class MeranTokenProviderTests
         var options = new MeranOptions
         {
             TokenEndpoint = "https://idp.example.com/token",
-            ClientId = "kalon",
             ClientSecret = "secret",
             Scope = "meran.api"
         };
@@ -73,7 +72,6 @@ public class MeranTokenProviderTests
         var options = new MeranOptions
         {
             TokenEndpoint = "",
-            ClientId = "",
             ClientSecret = "",
             ApiClientToken = "Bearer static-token"
         };

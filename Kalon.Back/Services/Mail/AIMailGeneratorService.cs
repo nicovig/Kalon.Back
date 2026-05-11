@@ -59,25 +59,7 @@ public class AiMailGeneratorService : IAiMailGeneratorService
             Longueur : 3 à 5 paragraphes maximum.
             """;
 
-        var message = await _client.Messages.GetClaudeMessageAsync(
-            new MessageParameters
-            {
-                Model = AnthropicModels.Claude45Haiku,
-                MaxTokens = 1024,
-                System = new List<SystemMessage>
-                {
-            new SystemMessage(systemPrompt)
-                },
-                Messages = new List<Message>
-                {
-            new() { Role = RoleType.User, Content = new List<ContentBase>
-            {
-                new TextContent { Text = userPrompt }
-            }}
-                }
-            });
-
-        var raw = message.Content.OfType<TextContent>().FirstOrDefault() ?? "";
+        var raw = await GenerateRawResponseAsync(systemPrompt, userPrompt);
         try
         {
             // nettoyer les éventuels backticks markdown
@@ -135,4 +117,27 @@ public class AiMailGeneratorService : IAiMailGeneratorService
         "anniversary_reminder" => "anniversaire de la contribution financière",
         _              => "communication générale"
     };
+
+    protected virtual async Task<string> GenerateRawResponseAsync(string systemPrompt, string userPrompt)
+    {
+        var message = await _client.Messages.GetClaudeMessageAsync(
+            new MessageParameters
+            {
+                Model = AnthropicModels.Claude45Haiku,
+                MaxTokens = 1024,
+                System = new List<SystemMessage>
+                {
+                    new SystemMessage(systemPrompt)
+                },
+                Messages = new List<Message>
+                {
+                    new() { Role = RoleType.User, Content = new List<ContentBase>
+                    {
+                        new TextContent { Text = userPrompt }
+                    }}
+                }
+            });
+
+        return message.Content.OfType<TextContent>().FirstOrDefault() ?? "";
+    }
 }
