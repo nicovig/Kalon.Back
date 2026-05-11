@@ -1,6 +1,6 @@
 using Kalon.Back.Data;
 using Kalon.Back.Models;
-using Kalon.Back.Services.Notification;
+using Kalon.Back.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace Kalon.Back.Tests;

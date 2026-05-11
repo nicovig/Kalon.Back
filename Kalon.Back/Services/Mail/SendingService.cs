@@ -280,6 +280,7 @@ public class SendingService : ISendingService
 
         var doc = new GeneratedDocument
         {
+            Id = Guid.NewGuid(),
             OrganizationId = org.Id,
             DocumentType = documentType,
             OrderNumber = orderNumber,
@@ -312,13 +313,16 @@ public class SendingService : ISendingService
             CreatedAt = DateTime.UtcNow
         };
 
-        await ApplyDonationSnapshotForGeneratedDocumentAsync(doc, contact.Id, org.Id);
+        var donationsToLink = await ApplyDonationSnapshotForGeneratedDocumentAsync(doc, contact.Id, org.Id);
 
         _db.GeneratedDocuments.Add(doc);
+        foreach (var donation in donationsToLink)
+            donation.GeneratedDocumentId = doc.Id;
+
         return doc;
     }
 
-    private async Task ApplyDonationSnapshotForGeneratedDocumentAsync(
+    private async Task<IReadOnlyList<Donation>> ApplyDonationSnapshotForGeneratedDocumentAsync(
         GeneratedDocument doc,
         Guid contactId,
         Guid organizationId)
@@ -330,12 +334,11 @@ public class SendingService : ISendingService
             doc.SnapshotDonationToDate = null;
             doc.SnapshotDonationCount = 0;
             doc.SnapshotDonationType = "financial";
-            return;
+            return [];
         }
 
         var currentYear = DateTime.UtcNow.Year;
         var all = await _db.Donations
-            .AsNoTracking()
             .Where(d => d.ContactId == contactId && d.OrganizationId == organizationId)
             .OrderBy(d => d.Date)
             .ToListAsync();
@@ -369,7 +372,7 @@ public class SendingService : ISendingService
             doc.SnapshotDonationToDate = null;
             doc.SnapshotDonationCount = 0;
             doc.SnapshotDonationType = "financial";
-            return;
+            return [];
         }
 
         doc.SnapshotAmount = slice.Sum(d => d.Amount);
@@ -382,6 +385,8 @@ public class SendingService : ISendingService
             .ThenByDescending(g => g.Count())
             .First()
             .Key;
+
+        return slice;
     }
 
     private async Task<string> GenerateOrderNumberAsync(Guid organizationId)

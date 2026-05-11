@@ -210,6 +210,103 @@ public class SendingServiceTests
         Assert.Equal(new DateTime(y, 2, 1, 0, 0, 0, DateTimeKind.Utc), generatedDoc.SnapshotDonationDate);
         Assert.Equal(new DateTime(y, 6, 15, 0, 0, 0, DateTimeKind.Utc), generatedDoc.SnapshotDonationToDate);
         Assert.Equal(2, generatedDoc.SnapshotDonationCount);
+        foreach (var d in await db.Donations.ToListAsync())
+            Assert.Equal(generatedDoc.Id, d.GeneratedDocumentId);
+    }
+
+    [Fact]
+    public async Task SendByEmailAsync_TaxReceipt_SetsDonationGeneratedDocumentId()
+    {
+        using var db = CreateDbContext(Guid.NewGuid().ToString());
+        var organizationId = Guid.NewGuid();
+        db.Organizations.Add(CreateOrganization(organizationId));
+        var contactId = Guid.NewGuid();
+        var contact = new Contact
+        {
+            Id = contactId,
+            OrganizationId = organizationId,
+            Kind = ContactKinds.Donor,
+            Firstname = "Marie",
+            Lastname = "Dupont",
+            Email = "marie@demo.org",
+            CreatedAt = DateTime.UtcNow
+        };
+        db.Contacts.Add(contact);
+        var donationId = Guid.NewGuid();
+        db.Donations.Add(new Donation
+        {
+            Id = donationId,
+            OrganizationId = organizationId,
+            ContactId = contactId,
+            Amount = 40m,
+            Date = new DateTime(DateTime.UtcNow.Year, 3, 10, 0, 0, 0, DateTimeKind.Utc),
+            DonationType = "financial",
+            CreatedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        await service.SendByEmailAsync(new SendDocumentDto
+        {
+            DocumentType = DocumentType.TaxReceipt,
+            Channel = "email",
+            Subject = "Sujet",
+            BodyHtml = "<p>accompagnement</p>",
+            DocumentBodyHtml = "<p>document</p>",
+            RecipientIds = [contactId]
+        }, organizationId);
+
+        var generatedDoc = await db.GeneratedDocuments.SingleAsync();
+        var donation = await db.Donations.FindAsync(donationId);
+        Assert.NotNull(donation);
+        Assert.Equal(generatedDoc.Id, donation!.GeneratedDocumentId);
+    }
+
+    [Fact]
+    public async Task GeneratePrintPdfAsync_TaxReceipt_SetsDonationGeneratedDocumentId()
+    {
+        using var db = CreateDbContext(Guid.NewGuid().ToString());
+        var organizationId = Guid.NewGuid();
+        db.Organizations.Add(CreateOrganization(organizationId));
+        var contactId = Guid.NewGuid();
+        var contact = new Contact
+        {
+            Id = contactId,
+            OrganizationId = organizationId,
+            Kind = ContactKinds.Donor,
+            Firstname = "Marie",
+            Lastname = "Dupont",
+            Email = "marie@demo.org",
+            CreatedAt = DateTime.UtcNow
+        };
+        db.Contacts.Add(contact);
+        var donationId = Guid.NewGuid();
+        db.Donations.Add(new Donation
+        {
+            Id = donationId,
+            OrganizationId = organizationId,
+            ContactId = contactId,
+            Amount = 25m,
+            Date = new DateTime(DateTime.UtcNow.Year, 5, 1, 0, 0, 0, DateTimeKind.Utc),
+            DonationType = "financial",
+            CreatedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        await service.GeneratePrintPdfAsync(new SendDocumentDto
+        {
+            DocumentType = DocumentType.TaxReceipt,
+            Channel = "print",
+            BodyHtml = "<p>msg</p>",
+            DocumentBodyHtml = "<p>doc</p>",
+            RecipientIds = [contactId]
+        }, organizationId);
+
+        var generatedDoc = await db.GeneratedDocuments.SingleAsync();
+        var donation = await db.Donations.FindAsync(donationId);
+        Assert.NotNull(donation);
+        Assert.Equal(generatedDoc.Id, donation!.GeneratedDocumentId);
     }
 
     [Fact]

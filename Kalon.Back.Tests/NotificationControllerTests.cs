@@ -3,7 +3,7 @@ using Kalon.Back.Controllers;
 using Kalon.Back.Data;
 using Kalon.Back.DTOs;
 using Kalon.Back.Models;
-using Kalon.Back.Services.Notification;
+using Kalon.Back.Services;
 using Kalon.Back.Services.OrganizationAccess;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
