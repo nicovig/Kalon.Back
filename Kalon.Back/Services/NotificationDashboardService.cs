@@ -3,7 +3,12 @@ using Kalon.Back.DTOs;
 using Kalon.Back.Models;
 using Microsoft.EntityFrameworkCore;
 
-namespace Kalon.Back.Services.Notification;
+namespace Kalon.Back.Services;
+
+public interface INotificationDashboardService
+{
+    Task<NotificationDashboardResponse> GetDashboardAsync(Guid organizationId, CancellationToken cancellationToken);
+}
 
 public class NotificationDashboardService(ApplicationDbContext dbContext) : INotificationDashboardService
 {

@@ -2,7 +2,6 @@ using Kalon.Back.Configuration;
 using Kalon.Back.Data;
 using Kalon.Back.Services;
 using Kalon.Back.Services.Mail;
-using Kalon.Back.Services.Notification;
 using Kalon.Back.Services.OrganizationAccess;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;

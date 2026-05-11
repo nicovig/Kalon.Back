@@ -1,6 +1,6 @@
 using System.Security.Claims;
 using Kalon.Back.DTOs;
-using Kalon.Back.Services.Notification;
+using Kalon.Back.Services;
 using Kalon.Back.Services.OrganizationAccess;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
