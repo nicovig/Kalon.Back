@@ -302,17 +302,86 @@ public class SendingService : ISendingService
                 : null,
             SnapshotContactSiret = contact.Enterprise?.Siret,
 
-            // snapshot donation (premier don lié si disponible)
             SnapshotAmount = 0,
             SnapshotDonationDate = DateTime.UtcNow,
+            SnapshotDonationToDate = null,
+            SnapshotDonationCount = 0,
             SnapshotDonationType = "financial",
 
             SignatureImagePath = signatureBlock?.StoredPath,
             CreatedAt = DateTime.UtcNow
         };
 
+        await ApplyDonationSnapshotForGeneratedDocumentAsync(doc, contact.Id, org.Id);
+
         _db.GeneratedDocuments.Add(doc);
         return doc;
+    }
+
+    private async Task ApplyDonationSnapshotForGeneratedDocumentAsync(
+        GeneratedDocument doc,
+        Guid contactId,
+        Guid organizationId)
+    {
+        if (!DocumentType.IsTaxDeductible(doc.DocumentType))
+        {
+            doc.SnapshotAmount = 0;
+            doc.SnapshotDonationDate = DateTime.UtcNow;
+            doc.SnapshotDonationToDate = null;
+            doc.SnapshotDonationCount = 0;
+            doc.SnapshotDonationType = "financial";
+            return;
+        }
+
+        var currentYear = DateTime.UtcNow.Year;
+        var all = await _db.Donations
+            .AsNoTracking()
+            .Where(d => d.ContactId == contactId && d.OrganizationId == organizationId)
+            .OrderBy(d => d.Date)
+            .ToListAsync();
+
+        int civilYear;
+        List<Donation> slice;
+        if (all.Count == 0)
+        {
+            civilYear = currentYear;
+            slice = [];
+        }
+        else
+        {
+            var inCurrentYear = all.Where(d => d.Date.Year == currentYear).ToList();
+            if (inCurrentYear.Count > 0)
+            {
+                civilYear = currentYear;
+                slice = inCurrentYear;
+            }
+            else
+            {
+                civilYear = all.Max(d => d.Date.Year);
+                slice = all.Where(d => d.Date.Year == civilYear).ToList();
+            }
+        }
+
+        if (slice.Count == 0)
+        {
+            doc.SnapshotAmount = 0;
+            doc.SnapshotDonationDate = new DateTime(civilYear, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            doc.SnapshotDonationToDate = null;
+            doc.SnapshotDonationCount = 0;
+            doc.SnapshotDonationType = "financial";
+            return;
+        }
+
+        doc.SnapshotAmount = slice.Sum(d => d.Amount);
+        doc.SnapshotDonationDate = slice.Min(d => d.Date);
+        doc.SnapshotDonationToDate = slice.Count > 1 ? slice.Max(d => d.Date) : null;
+        doc.SnapshotDonationCount = slice.Count;
+        doc.SnapshotDonationType = slice
+            .GroupBy(d => d.DonationType)
+            .OrderByDescending(g => g.Sum(x => x.Amount))
+            .ThenByDescending(g => g.Count())
+            .First()
+            .Key;
     }
 
     private async Task<string> GenerateOrderNumberAsync(Guid organizationId)

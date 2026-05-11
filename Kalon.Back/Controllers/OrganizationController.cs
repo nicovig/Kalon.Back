@@ -17,8 +17,6 @@ public class OrganizationController : ControllerBase
         _db = db;
     }
 
-    // GET api/organization
-    // retourne l'organisation de l'utilisateur connecté
     [HttpGet]
     [ProducesResponseType(typeof(OrganizationResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
@@ -35,8 +33,6 @@ public class OrganizationController : ControllerBase
         return Ok(ToResponseDto(org));
     }
 
-    // PUT api/organization
-    // met à jour les infos de l'organisation
     [HttpPut]
     [ProducesResponseType(typeof(OrganizationResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
@@ -82,8 +78,6 @@ public class OrganizationController : ControllerBase
         return Ok(ToResponseDto(org));
     }
 
-    // PUT api/organization/status-settings
-    // met à jour les paramètres de statut des profils
     [HttpPut("status-settings")]
     [ProducesResponseType(typeof(ContactStatusSettingsResponseDto), StatusCodes.Status200OK)]
     public async Task<ActionResult<ContactStatusSettingsResponseDto>> UpdateStatusSettings(

@@ -105,6 +105,114 @@ public class SendingServiceTests
     }
 
     [Fact]
+    public async Task GeneratePrintPdfAsync_TaxReceipt_SetsSnapshotFromDonationsOnDonationDate()
+    {
+        using var db = CreateDbContext(Guid.NewGuid().ToString());
+        var organizationId = Guid.NewGuid();
+        db.Organizations.Add(CreateOrganization(organizationId));
+        var contactId = Guid.NewGuid();
+        var contact = new Contact
+        {
+            Id = contactId,
+            OrganizationId = organizationId,
+            Kind = ContactKinds.Donor,
+            Firstname = "Marie",
+            Lastname = "Dupont",
+            Email = "marie@demo.org",
+            CreatedAt = DateTime.UtcNow
+        };
+        db.Contacts.Add(contact);
+        var donationDate = new DateTime(DateTime.UtcNow.Year, 4, 1, 12, 0, 0, DateTimeKind.Utc);
+        db.Donations.Add(new Donation
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = organizationId,
+            ContactId = contactId,
+            Amount = 50m,
+            Date = donationDate,
+            DonationType = "financial",
+            CreatedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        await service.GeneratePrintPdfAsync(new SendDocumentDto
+        {
+            DocumentType = DocumentType.TaxReceipt,
+            Channel = "print",
+            BodyHtml = "<p>msg</p>",
+            DocumentBodyHtml = "<p>doc</p>",
+            RecipientIds = [contactId]
+        }, organizationId);
+
+        var generatedDoc = await db.GeneratedDocuments.SingleAsync();
+        Assert.Equal(50m, generatedDoc.SnapshotAmount);
+        Assert.Equal(donationDate, generatedDoc.SnapshotDonationDate);
+        Assert.Null(generatedDoc.SnapshotDonationToDate);
+        Assert.Equal(1, generatedDoc.SnapshotDonationCount);
+        Assert.Equal("financial", generatedDoc.SnapshotDonationType);
+    }
+
+    [Fact]
+    public async Task GeneratePrintPdfAsync_TaxReceipt_AggregatesMultipleDonationsSameCivilYear()
+    {
+        using var db = CreateDbContext(Guid.NewGuid().ToString());
+        var organizationId = Guid.NewGuid();
+        db.Organizations.Add(CreateOrganization(organizationId));
+        var contactId = Guid.NewGuid();
+        var contact = new Contact
+        {
+            Id = contactId,
+            OrganizationId = organizationId,
+            Kind = ContactKinds.Donor,
+            Firstname = "Marie",
+            Lastname = "Dupont",
+            Email = "marie@demo.org",
+            CreatedAt = DateTime.UtcNow
+        };
+        db.Contacts.Add(contact);
+        var y = DateTime.UtcNow.Year;
+        db.Donations.AddRange(
+            new Donation
+            {
+                Id = Guid.NewGuid(),
+                OrganizationId = organizationId,
+                ContactId = contactId,
+                Amount = 20m,
+                Date = new DateTime(y, 2, 1, 0, 0, 0, DateTimeKind.Utc),
+                DonationType = "financial",
+                CreatedAt = DateTime.UtcNow
+            },
+            new Donation
+            {
+                Id = Guid.NewGuid(),
+                OrganizationId = organizationId,
+                ContactId = contactId,
+                Amount = 30m,
+                Date = new DateTime(y, 6, 15, 0, 0, 0, DateTimeKind.Utc),
+                DonationType = "financial",
+                CreatedAt = DateTime.UtcNow
+            });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        await service.GeneratePrintPdfAsync(new SendDocumentDto
+        {
+            DocumentType = DocumentType.TaxReceipt,
+            Channel = "print",
+            BodyHtml = "<p>msg</p>",
+            DocumentBodyHtml = "<p>doc</p>",
+            RecipientIds = [contactId]
+        }, organizationId);
+
+        var generatedDoc = await db.GeneratedDocuments.SingleAsync();
+        Assert.Equal(50m, generatedDoc.SnapshotAmount);
+        Assert.Equal(new DateTime(y, 2, 1, 0, 0, 0, DateTimeKind.Utc), generatedDoc.SnapshotDonationDate);
+        Assert.Equal(new DateTime(y, 6, 15, 0, 0, 0, DateTimeKind.Utc), generatedDoc.SnapshotDonationToDate);
+        Assert.Equal(2, generatedDoc.SnapshotDonationCount);
+    }
+
+    [Fact]
     public async Task GeneratePrintPdfAsync_TaxReceiptRequestWithCompanies_GeneratesCerfa16216()
     {
         using var db = CreateDbContext(Guid.NewGuid().ToString());

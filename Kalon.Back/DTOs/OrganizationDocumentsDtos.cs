@@ -21,6 +21,8 @@ public class GeneratedDocumentDetailsResponse
     public string SnapshotContactDisplayName { get; set; } = string.Empty;
     public decimal SnapshotAmount { get; set; }
     public DateTime SnapshotDonationDate { get; set; }
+    public DateTime? SnapshotDonationToDate { get; set; }
+    public int SnapshotDonationCount { get; set; }
     public string SnapshotDonationType { get; set; } = string.Empty;
     public string? PdfPath { get; set; }
     public string Status { get; set; } = string.Empty;

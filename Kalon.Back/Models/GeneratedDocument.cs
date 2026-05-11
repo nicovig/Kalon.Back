@@ -38,6 +38,8 @@ public class GeneratedDocument
     // snapshot donation / cotisation
     public decimal SnapshotAmount { get; set; }
     public DateTime SnapshotDonationDate { get; set; }
+    public DateTime? SnapshotDonationToDate { get; set; }
+    public int SnapshotDonationCount { get; set; }
     public string SnapshotDonationType { get; set; }
 
     // ── personnalisation ──────────────────────────────────────────

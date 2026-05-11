@@ -35,7 +35,6 @@ public class Organization
     [Required]
     public string RNA { get; set; } = string.Empty;
 
-    [Required]
     public string SIRET { get; set; } = string.Empty;
 
     public string FiscalStatus { get; set; } = string.Empty;

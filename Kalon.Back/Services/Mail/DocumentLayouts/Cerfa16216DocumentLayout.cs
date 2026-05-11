@@ -12,7 +12,7 @@ internal static class Cerfa16216DocumentLayout
     public static void Render(ColumnDescriptor col, PrintPageData data)
     {
         var doc = data.GeneratedDocument!;
-        var amount = doc.SnapshotAmount.ToString("C", new System.Globalization.CultureInfo("fr-FR"));
+        var amount = CerfaDonationWording.FormatMoney(doc.SnapshotAmount);
         var giftText = StripHtml(data.ResolvedHtml);
 
         col.Item().Border(1).BorderColor("#BFDBFE").Background("#EFF6FF").Padding(14).Column(header =>
@@ -37,11 +37,32 @@ internal static class Cerfa16216DocumentLayout
             sum.Item().Text("Attestation de versement entreprise").Bold().FontSize(13).FontColor("#111827");
             sum.Item().PaddingTop(4).Text(t =>
             {
-                t.Span("Nous certifions avoir reçu de ").FontSize(10);
-                t.Span(doc.SnapshotContactDisplayName).SemiBold().FontSize(10);
-                t.Span(" un versement de ").FontSize(10);
-                t.Span(amount).SemiBold().FontSize(10);
-                t.Span($" en date du {doc.SnapshotDonationDate:dd/MM/yyyy}.").FontSize(10);
+                if (doc.SnapshotDonationCount <= 0)
+                {
+                    t.Span("Aucun versement recensé au nom de ").FontSize(10);
+                    t.Span(doc.SnapshotContactDisplayName).SemiBold().FontSize(10);
+                    t.Span($" pour l'année civile {CerfaDonationWording.FormatCivilYearNumber(doc)}.").FontSize(10);
+                }
+                else if (CerfaDonationWording.MultipleDonations(doc))
+                {
+                    t.Span("Nous certifions avoir reçu de ").FontSize(10);
+                    t.Span(doc.SnapshotContactDisplayName).SemiBold().FontSize(10);
+                    t.Span(" un versement total de ").FontSize(10);
+                    t.Span(amount).SemiBold().FontSize(10);
+                    t.Span(" au titre des versements effectués ").FontSize(10);
+                    t.Span(CerfaDonationWording.FormatPeriodLabel(doc)).SemiBold().FontSize(10);
+                    t.Span($" (année civile {CerfaDonationWording.FormatCivilYearNumber(doc)}).").FontSize(10);
+                }
+                else
+                {
+                    t.Span("Nous certifions avoir reçu de ").FontSize(10);
+                    t.Span(doc.SnapshotContactDisplayName).SemiBold().FontSize(10);
+                    t.Span(" un versement de ").FontSize(10);
+                    t.Span(amount).SemiBold().FontSize(10);
+                    t.Span(" en date du ").FontSize(10);
+                    t.Span($"{doc.SnapshotDonationDate:dd/MM/yyyy}").SemiBold().FontSize(10);
+                    t.Span($" (année civile {CerfaDonationWording.FormatCivilYearNumber(doc)}).").FontSize(10);
+                }
             });
         });
 
@@ -72,8 +93,19 @@ internal static class Cerfa16216DocumentLayout
         col.Item().PaddingTop(10).Border(1).BorderColor("#E5E7EB").Padding(10).Column(gift =>
         {
             gift.Item().Text("Détail du versement").SemiBold().FontSize(10).FontColor("#111827");
-            gift.Item().PaddingTop(4).Text($"Montant : {amount}").FontSize(10);
-            gift.Item().Text($"Date : {doc.SnapshotDonationDate:dd/MM/yyyy}").FontSize(10);
+            gift.Item().PaddingTop(4).Text(
+                    (CerfaDonationWording.MultipleDonations(doc) ? "Montant total : " : "Montant : ") + amount)
+                .FontSize(10);
+            if (doc.SnapshotDonationCount > 0)
+            {
+                gift.Item().Text($"Période couverte : {CerfaDonationWording.FormatPeriodLabel(doc)}").FontSize(10);
+                gift.Item().Text($"Année civile : {CerfaDonationWording.FormatCivilYearNumber(doc)}").FontSize(10);
+            }
+            else
+            {
+                gift.Item().Text($"Année civile : {CerfaDonationWording.FormatCivilYearNumber(doc)}").FontSize(10);
+            }
+
             gift.Item().Text($"Nature : {TranslateDonationType(doc.SnapshotDonationType)}").FontSize(10);
         });
 
