@@ -1,6 +1,7 @@
 ﻿using Kalon.Back.Data;
 using Kalon.Back.Dtos;
 using Kalon.Back.Models;
+using Kalon.Back.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace Kalon.Back.Services.Mail;
@@ -68,7 +69,7 @@ public class SendingService : ISendingService
                 if (RequiresGeneratedDocument(effectiveDocumentType))
                 {
                     generatedDoc = await CreateGeneratedDocumentAsync(
-                        effectiveDocumentType, contact, org, signatureBlock, resolvedDocumentHtml);
+                        effectiveDocumentType, contact, org, signatureBlock, dto);
                 }
 
                 byte[]? attachmentBytes = null;
@@ -189,7 +190,7 @@ public class SendingService : ISendingService
             if (RequiresGeneratedDocument(effectiveDocumentType))
             {
                 generatedDoc = await CreateGeneratedDocumentAsync(
-                    effectiveDocumentType, contact, org, signatureBlock, resolvedDocumentHtml);
+                    effectiveDocumentType, contact, org, signatureBlock, dto);
                 generatedDoc.Status = GeneratedDocumentStatuses.Generated;
                 result.GeneratedDocumentIds.Add(generatedDoc.Id);
             }
@@ -272,7 +273,7 @@ public class SendingService : ISendingService
         Contact contact,
         Organization org,
         ContentBlock? signatureBlock,
-        string resolvedHtml)
+        SendDocumentDto dto)
     {
         var orderNumber = DocumentType.RequiresOrderNumber(documentType)
             ? await GenerateOrderNumberAsync(org.Id)
@@ -313,7 +314,8 @@ public class SendingService : ISendingService
             CreatedAt = DateTime.UtcNow
         };
 
-        var donationsToLink = await ApplyDonationSnapshotForGeneratedDocumentAsync(doc, contact.Id, org.Id);
+        var donationsToLink = await ApplyDonationSnapshotForGeneratedDocumentAsync(
+            doc, contact.Id, org.Id, dto);
 
         _db.GeneratedDocuments.Add(doc);
         foreach (var donation in donationsToLink)
@@ -325,7 +327,8 @@ public class SendingService : ISendingService
     private async Task<IReadOnlyList<Donation>> ApplyDonationSnapshotForGeneratedDocumentAsync(
         GeneratedDocument doc,
         Guid contactId,
-        Guid organizationId)
+        Guid organizationId,
+        SendDocumentDto dto)
     {
         if (!DocumentType.IsTaxDeductible(doc.DocumentType))
         {
@@ -333,45 +336,33 @@ public class SendingService : ISendingService
             doc.SnapshotDonationDate = DateTime.UtcNow;
             doc.SnapshotDonationToDate = null;
             doc.SnapshotDonationCount = 0;
-            doc.SnapshotDonationType = "financial";
+            doc.SnapshotDonationType = TaxReceiptPeriodHelper.FinancialDonationType;
             return [];
         }
 
-        var currentYear = DateTime.UtcNow.Year;
-        var all = await _db.Donations
-            .Where(d => d.ContactId == contactId && d.OrganizationId == organizationId)
-            .OrderBy(d => d.Date)
-            .ToListAsync();
+        var period = TaxReceiptPeriodHelper.Create(
+            dto.TaxReceiptPeriodFrom!.Value,
+            dto.TaxReceiptPeriodTo!.Value);
 
-        int civilYear;
-        List<Donation> slice;
-        if (all.Count == 0)
-        {
-            civilYear = currentYear;
-            slice = [];
-        }
-        else
-        {
-            var inCurrentYear = all.Where(d => d.Date.Year == currentYear).ToList();
-            if (inCurrentYear.Count > 0)
-            {
-                civilYear = currentYear;
-                slice = inCurrentYear;
-            }
-            else
-            {
-                civilYear = all.Max(d => d.Date.Year);
-                slice = all.Where(d => d.Date.Year == civilYear).ToList();
-            }
-        }
+        var query = _db.Donations
+            .Where(d => d.ContactId == contactId
+                        && d.OrganizationId == organizationId
+                        && d.DonationType == TaxReceiptPeriodHelper.FinancialDonationType
+                        && d.Date >= period.From
+                        && d.Date <= period.To);
+
+        if (dto.DonationIds is { Count: > 0 })
+            query = query.Where(d => dto.DonationIds.Contains(d.Id));
+
+        var slice = await query.OrderBy(d => d.Date).ToListAsync();
 
         if (slice.Count == 0)
         {
             doc.SnapshotAmount = 0;
-            doc.SnapshotDonationDate = new DateTime(civilYear, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            doc.SnapshotDonationDate = period.From;
             doc.SnapshotDonationToDate = null;
             doc.SnapshotDonationCount = 0;
-            doc.SnapshotDonationType = "financial";
+            doc.SnapshotDonationType = TaxReceiptPeriodHelper.FinancialDonationType;
             return [];
         }
 
@@ -379,12 +370,7 @@ public class SendingService : ISendingService
         doc.SnapshotDonationDate = slice.Min(d => d.Date);
         doc.SnapshotDonationToDate = slice.Count > 1 ? slice.Max(d => d.Date) : null;
         doc.SnapshotDonationCount = slice.Count;
-        doc.SnapshotDonationType = slice
-            .GroupBy(d => d.DonationType)
-            .OrderByDescending(g => g.Sum(x => x.Amount))
-            .ThenByDescending(g => g.Count())
-            .First()
-            .Key;
+        doc.SnapshotDonationType = TaxReceiptPeriodHelper.FinancialDonationType;
 
         return slice;
     }

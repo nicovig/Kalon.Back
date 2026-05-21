@@ -7,7 +7,11 @@ namespace Kalon.Back.Services;
 
 public interface INotificationDashboardService
 {
-    Task<NotificationDashboardResponse> GetDashboardAsync(Guid organizationId, CancellationToken cancellationToken);
+    Task<NotificationDashboardResponse> GetDashboardAsync(
+        Guid organizationId,
+        CancellationToken cancellationToken,
+        DateTime? taxReceiptPeriodFrom = null,
+        DateTime? taxReceiptPeriodTo = null);
 }
 
 public class NotificationDashboardService(ApplicationDbContext dbContext) : INotificationDashboardService
@@ -16,7 +20,11 @@ public class NotificationDashboardService(ApplicationDbContext dbContext) : INot
     private const int DefaultToRemindAfterMonths = 12;
     private const int DefaultInactiveAfterMonths = 24;
 
-    public async Task<NotificationDashboardResponse> GetDashboardAsync(Guid organizationId, CancellationToken cancellationToken)
+    public async Task<NotificationDashboardResponse> GetDashboardAsync(
+        Guid organizationId,
+        CancellationToken cancellationToken,
+        DateTime? taxReceiptPeriodFrom = null,
+        DateTime? taxReceiptPeriodTo = null)
     {
         var settings = await dbContext.ContactStatusSettings
             .AsNoTracking()
@@ -40,16 +48,47 @@ public class NotificationDashboardService(ApplicationDbContext dbContext) : INot
             })
             .ToListAsync(cancellationToken);
 
-        var donations = await dbContext.Donations
+        var donationRows = await dbContext.Donations
             .AsNoTracking()
             .Where(x => x.OrganizationId == organizationId)
-            .Select(x => new
-            {
+            .Select(x => new DonationReceiptRow(
                 x.ContactId,
                 x.Date,
-                x.GeneratedDocumentId
+                x.DonationType,
+                x.GeneratedDocumentId,
+                x.GeneratedDocument != null ? x.GeneratedDocument.DocumentType : null))
+            .ToListAsync(cancellationToken);
+
+        var cerfaDocuments = await dbContext.GeneratedDocuments
+            .AsNoTracking()
+            .Where(x => x.OrganizationId == organizationId
+                        && (x.DocumentType == DocumentType.Cerfa11580
+                            || x.DocumentType == DocumentType.Cerfa16216))
+            .Select(x => new
+            {
+                x.Id,
+                x.SnapshotContactDisplayName,
+                x.SnapshotDonationDate,
+                x.SnapshotDonationToDate,
+                DonationContactIds = x.Donations.Select(d => d.ContactId).ToList()
             })
             .ToListAsync(cancellationToken);
+
+        var cerfaIds = cerfaDocuments.Select(x => x.Id).ToList();
+        var mailLogRows = cerfaIds.Count == 0
+            ? []
+            : await dbContext.MailLogs
+                .AsNoTracking()
+                .Where(x => x.OrganizationId == organizationId
+                            && x.GeneratedDocumentId != null
+                            && cerfaIds.Contains(x.GeneratedDocumentId.Value))
+                .Select(x => new { GeneratedDocumentId = x.GeneratedDocumentId!.Value, x.ContactId })
+                .ToListAsync(cancellationToken);
+        var mailLogContactsByCerfa = mailLogRows
+            .GroupBy(x => x.GeneratedDocumentId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(x => x.ContactId).Distinct().ToList());
 
         var physicalLettersToSendCount = await dbContext.MailLogs
             .AsNoTracking()
@@ -61,9 +100,28 @@ public class NotificationDashboardService(ApplicationDbContext dbContext) : INot
         var toRemindAfterMonths = settings?.ToRemindAfterMonths ?? DefaultToRemindAfterMonths;
         var inactiveAfterMonths = settings?.InactiveAfterMonths ?? DefaultInactiveAfterMonths;
 
-        var donationByContact = donations
+        var defaultFrequency = ResolveReceiptFrequency(null, organization.DefaultReceiptFrequency);
+        var taxReceiptPeriod = TaxReceiptPeriodHelper.ResolveOrDefault(
+            taxReceiptPeriodFrom, taxReceiptPeriodTo, defaultFrequency, now);
+
+        var donationByContact = donationRows
             .GroupBy(x => x.ContactId)
             .ToDictionary(g => g.Key, g => g.ToList());
+
+        var contactDisplayNames = contacts.ToDictionary(
+            c => c.Id,
+            c => $"{c.Firstname} {c.Lastname}".Trim());
+
+        var cerfaCoverageRows = cerfaDocuments
+            .Select(x => new CerfaDocumentCoverageRow(
+                x.Id,
+                x.SnapshotContactDisplayName,
+                x.SnapshotDonationDate,
+                x.SnapshotDonationToDate,
+                x.DonationContactIds))
+            .ToList();
+        var cerfaPeriodsByContact = BuildCerfaCoveragePeriodsByContact(
+            cerfaCoverageRows, mailLogContactsByCerfa, contactDisplayNames);
 
         var contactsToRemind = new List<NotificationContactItem>();
         var contactsToSendTaxReceipts = new List<NotificationContactItem>();
@@ -87,13 +145,10 @@ public class NotificationDashboardService(ApplicationDbContext dbContext) : INot
                     DisplayName = $"{contact.Firstname} {contact.Lastname}".Trim()
                 });
 
-            var effectiveFrequency = ResolveReceiptFrequency(contact.PreferredFrequencySendingReceipt,
-                organization.DefaultReceiptFrequency);
-            var uneditedDonations = contactDonations
-                .Where(x => x.GeneratedDocumentId is null)
-                .Select(x => x.Date)
-                .ToList();
-            if (IsReceiptDue(effectiveFrequency, uneditedDonations, now))
+            var contactCerfaPeriods = cerfaPeriodsByContact.GetValueOrDefault(contact.Id, []);
+
+            if (TaxReceiptPeriodHelper.ContactNeedsCerfaForPeriod(
+                    taxReceiptPeriod, contactDonations, contactCerfaPeriods))
             {
                 contactsToSendTaxReceipts.Add(new NotificationContactItem
                 {
@@ -107,41 +162,58 @@ public class NotificationDashboardService(ApplicationDbContext dbContext) : INot
         {
             ContactsToRemind = contactsToRemind,
             ContactsToSendTaxReceipts = contactsToSendTaxReceipts,
-            PhysicalLettersToSendCount = physicalLettersToSendCount
+            PhysicalLettersToSendCount = physicalLettersToSendCount,
+            TaxReceiptPeriodFrom = taxReceiptPeriod.From,
+            TaxReceiptPeriodTo = taxReceiptPeriod.To
         };
     }
 
-    private static bool IsReceiptDue(string frequency, List<DateTime> uneditedDonationDates, DateTime now)
+    private static Dictionary<Guid, List<TaxReceiptPeriod>> BuildCerfaCoveragePeriodsByContact(
+        IEnumerable<CerfaDocumentCoverageRow> cerfaDocuments,
+        IReadOnlyDictionary<Guid, List<Guid>> mailLogContactsByCerfa,
+        IReadOnlyDictionary<Guid, string> contactDisplayNames)
     {
-        if (uneditedDonationDates.Count == 0)
-            return false;
+        var result = new Dictionary<Guid, List<TaxReceiptPeriod>>();
 
-        if (frequency is "instantly" or "onetime")
-            return true;
-
-        var boundary = frequency switch
+        foreach (var cerfa in cerfaDocuments)
         {
-            "monthly" => new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc),
-            "quarterly" => QuarterStartUtc(now),
-            "semesterly" => SemesterStartUtc(now),
-            "yearly" => new DateTime(now.Year, 1, 1, 0, 0, 0, DateTimeKind.Utc),
-            _ => new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc)
-        };
+            var period = TaxReceiptPeriodHelper.Create(
+                cerfa.SnapshotDonationDate,
+                cerfa.SnapshotDonationToDate ?? cerfa.SnapshotDonationDate);
 
-        return uneditedDonationDates.Any(date => date < boundary);
+            var contactIds = new List<Guid>(cerfa.DonationContactIds);
+            if (contactIds.Count == 0)
+                contactIds.AddRange(mailLogContactsByCerfa.GetValueOrDefault(cerfa.Id, []));
+            if (contactIds.Count == 0)
+            {
+                var matched = contactDisplayNames
+                    .Where(c => string.Equals(c.Value, cerfa.SnapshotContactDisplayName, StringComparison.OrdinalIgnoreCase))
+                    .Select(c => c.Key)
+                    .ToList();
+                contactIds.AddRange(matched);
+            }
+
+            foreach (var contactId in contactIds.Distinct())
+            {
+                if (!result.TryGetValue(contactId, out var periods))
+                {
+                    periods = [];
+                    result[contactId] = periods;
+                }
+
+                periods.Add(period);
+            }
+        }
+
+        return result;
     }
 
-    private static DateTime QuarterStartUtc(DateTime now)
-    {
-        var month = ((now.Month - 1) / 3) * 3 + 1;
-        return new DateTime(now.Year, month, 1, 0, 0, 0, DateTimeKind.Utc);
-    }
-
-    private static DateTime SemesterStartUtc(DateTime now)
-    {
-        var month = now.Month <= 6 ? 1 : 7;
-        return new DateTime(now.Year, month, 1, 0, 0, 0, DateTimeKind.Utc);
-    }
+    private sealed record CerfaDocumentCoverageRow(
+        Guid Id,
+        string SnapshotContactDisplayName,
+        DateTime SnapshotDonationDate,
+        DateTime? SnapshotDonationToDate,
+        List<Guid> DonationContactIds);
 
     private static string ResolveReceiptFrequency(string? preferredFrequency, ReceiptFrequency defaultFrequency)
     {
@@ -158,4 +230,5 @@ public class NotificationDashboardService(ApplicationDbContext dbContext) : INot
             _ => "yearly"
         };
     }
+
 }

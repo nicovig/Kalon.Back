@@ -20,6 +20,7 @@ builder.Services.AddScoped<IPasswordService, PasswordService>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IUserOrganizationAccessService, UserOrganizationAccessService>();
 builder.Services.AddScoped<INotificationDashboardService, NotificationDashboardService>();
+builder.Services.AddScoped<IDonationService, DonationService>();
 builder.Services.AddScoped<IDocumentGeneratorService, DocumentGeneratorService>();
 builder.Services.AddScoped<IVariableResolverService, VariableResolverService>();
 builder.Services.AddScoped<ISendingService, SendingService>();

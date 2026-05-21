@@ -35,6 +35,12 @@ public class DonationListResponse
     public int TotalPages { get; set; }
 }
 
+public class DonationByContactListResponse
+{
+    public Guid ContactId { get; set; }
+    public List<DonationResponse> Items { get; set; } = [];
+}
+
 public class DonationCreateRequest
 {
     public Guid ContactId { get; set; }

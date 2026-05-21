@@ -62,6 +62,15 @@ public class SendingController : ControllerBase
         if (dto.DocumentType != DocumentType.Message && string.IsNullOrWhiteSpace(dto.DocumentBodyHtml))
             return BadRequest(new ApiMessageResponse { Message = "DocumentBodyHtml is required for document types." });
 
+        try
+        {
+            SendingTaxReceiptRequestValidator.ValidateTaxReceiptPeriod(dto);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new ApiMessageResponse { Message = ex.Message });
+        }
+
         var organizationId = GetOrganizationId();
 
         await _quotaService.CheckAndIncrementAsync(
@@ -125,6 +134,15 @@ public class SendingController : ControllerBase
 
         if (dto.DocumentType != DocumentType.Message && string.IsNullOrWhiteSpace(dto.DocumentBodyHtml))
             return BadRequest(new ApiMessageResponse { Message = "DocumentBodyHtml is required for document types." });
+
+        try
+        {
+            SendingTaxReceiptRequestValidator.ValidateTaxReceiptPeriod(dto);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new ApiMessageResponse { Message = ex.Message });
+        }
 
         var organizationId = GetOrganizationId();
 
