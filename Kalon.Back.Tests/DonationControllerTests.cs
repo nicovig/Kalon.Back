@@ -1,6 +1,7 @@
 using Kalon.Back.Controllers;
 using Kalon.Back.Data;
 using Kalon.Back.DTOs;
+using Kalon.Back.Services;
 using Kalon.Back.Services.OrganizationAccess;
 using Kalon.Back.Models;
 using System.Security.Claims;
@@ -15,7 +16,7 @@ public class DonationControllerTests
     private const int DefaultPageSize = 50;
 
     private static DonationController CreateController(ApplicationDbContext dbContext) =>
-        new(dbContext, new UserOrganizationAccessService(dbContext));
+        new(dbContext, new UserOrganizationAccessService(dbContext), new DonationService(dbContext));
 
     private static void SetAuthenticatedUser(ControllerBase controller, Guid userId)
     {
@@ -201,7 +202,6 @@ public class DonationControllerTests
             null,
             null,
             null,
-            null,
             1,
             DefaultPageSize,
             CancellationToken.None);
@@ -236,7 +236,6 @@ public class DonationControllerTests
         var controller = CreateController(dbContext);
         SetAuthenticatedUser(controller, userId);
         var result = await controller.GetAll(
-            null,
             null,
             null,
             null,
@@ -279,7 +278,6 @@ public class DonationControllerTests
             "In_Kind",
             null,
             null,
-            null,
             1,
             DefaultPageSize,
             CancellationToken.None);
@@ -288,6 +286,98 @@ public class DonationControllerTests
         var payload = Assert.IsType<DonationListResponse>(ok.Value);
         Assert.Equal(1, payload.TotalCount);
         Assert.Equal("in_kind", payload.Items[0].DonationType);
+    }
+
+    [Fact]
+    public async Task GetAllByContactId_ReturnsAllDonationsWithoutPagination()
+    {
+        using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var userId = Guid.NewGuid();
+        var user = CreateUser(userId, "owner@example.com");
+        var organizationId = Guid.NewGuid();
+        var organization = CreateOrganization(organizationId, userId, user);
+        var contact = CreateContact(Guid.NewGuid(), organizationId, "John", "Doe");
+        var otherContact = CreateContact(Guid.NewGuid(), organizationId, "Jane", "Roe");
+        dbContext.Users.Add(user);
+        dbContext.Organizations.Add(organization);
+        dbContext.Contacts.AddRange(contact, otherContact);
+        dbContext.Donations.AddRange(
+            CreateDonation(Guid.NewGuid(), organizationId, contact.Id, 10m, DateTime.UtcNow.AddDays(-3), "financial"),
+            CreateDonation(Guid.NewGuid(), organizationId, contact.Id, 20m, DateTime.UtcNow.AddDays(-2), "financial"),
+            CreateDonation(Guid.NewGuid(), organizationId, contact.Id, 30m, DateTime.UtcNow.AddDays(-1), "financial"),
+            CreateDonation(Guid.NewGuid(), organizationId, otherContact.Id, 99m, DateTime.UtcNow, "financial"));
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.GetAllByContactId(
+            contact.Id,
+            null,
+            null,
+            null,
+            null,
+            null,
+            CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var payload = Assert.IsType<DonationByContactListResponse>(ok.Value);
+        Assert.Equal(contact.Id, payload.ContactId);
+        Assert.Equal(3, payload.Items.Count);
+        Assert.Equal(30m, payload.Items[0].Amount);
+        Assert.Equal(20m, payload.Items[1].Amount);
+        Assert.Equal(10m, payload.Items[2].Amount);
+        Assert.All(payload.Items, i => Assert.Equal(contact.Id, i.ContactId));
+    }
+
+    [Fact]
+    public async Task GetAllByContactId_ReturnsNotFound_WhenContactNotInOrganization()
+    {
+        using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var userId = Guid.NewGuid();
+        var user = CreateUser(userId, "owner@example.com");
+        var organizationId = Guid.NewGuid();
+        var organization = CreateOrganization(organizationId, userId, user);
+        dbContext.Users.Add(user);
+        dbContext.Organizations.Add(organization);
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.GetAllByContactId(
+            Guid.NewGuid(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            CancellationToken.None);
+
+        Assert.IsType<NotFoundObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetAllByContactId_ReturnsBadRequest_WhenContactIdEmpty()
+    {
+        using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var userId = Guid.NewGuid();
+        var user = CreateUser(userId, "owner@example.com");
+        var organization = CreateOrganization(Guid.NewGuid(), userId, user);
+        dbContext.Users.Add(user);
+        dbContext.Organizations.Add(organization);
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.GetAllByContactId(
+            Guid.Empty,
+            null,
+            null,
+            null,
+            null,
+            null,
+            CancellationToken.None);
+
+        Assert.IsType<BadRequestObjectResult>(result);
     }
 
     [Fact]
@@ -304,7 +394,6 @@ public class DonationControllerTests
         var controller = CreateController(dbContext);
         SetAuthenticatedUser(controller, userId);
         var result = await controller.GetAll(
-            null,
             null,
             null,
             null,

@@ -1,6 +1,7 @@
 using Kalon.Back.Data;
 using Kalon.Back.DTOs;
 using Kalon.Back.Models;
+using Kalon.Back.Services;
 using Kalon.Back.Services.OrganizationAccess;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
@@ -12,11 +13,12 @@ namespace Kalon.Back.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize(Roles = "organization_master")]
-public class DonationController(ApplicationDbContext dbContext, IUserOrganizationAccessService userOrganizationAccess)
+public class DonationController(
+    ApplicationDbContext dbContext,
+    IUserOrganizationAccessService userOrganizationAccess,
+    IDonationService donationService)
     : ControllerBase
 {
-    private const int DefaultPageSize = 50;
-    private const int MaxPageSize = 200;
     private const int MaxBulkCreateItems = 500;
 
     private static readonly HashSet<string> AllowedDonationTypes = new(StringComparer.OrdinalIgnoreCase)
@@ -59,7 +61,7 @@ public class DonationController(ApplicationDbContext dbContext, IUserOrganizatio
         dbContext.Donations.Add(donation);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        var details = await ProjectDonationAsync(donation.Id, organizationId, cancellationToken);
+        var details = await donationService.GetByIdAsync(organizationId, donation.Id, cancellationToken);
         return CreatedAtAction(nameof(GetById), new { id = donation.Id }, details);
     }
 
@@ -141,11 +143,10 @@ public class DonationController(ApplicationDbContext dbContext, IUserOrganizatio
         [FromQuery] DateTime? fromDate,
         [FromQuery] DateTime? toDate,
         [FromQuery] string? donationType,
-        [FromQuery] Guid? contactId,
         [FromQuery] decimal? minAmount,
         [FromQuery] decimal? maxAmount,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = DefaultPageSize,
+        [FromQuery] int pageSize = DonationService.DefaultPageSize,
         CancellationToken cancellationToken = default)
     {
         var userId = ResolveUserIdFromJwt();
@@ -159,89 +160,65 @@ public class DonationController(ApplicationDbContext dbContext, IUserOrganizatio
 
         var organizationId = resolved.OrganizationId;
 
-        var paginationError = ValidatePagination(page, pageSize);
+        var paginationError = donationService.ValidatePagination(page, pageSize);
         if (paginationError is not null)
             return BadRequest(new ApiMessageResponse { Message = paginationError });
 
-        if (!string.IsNullOrWhiteSpace(donationType) && !AllowedDonationTypes.Contains(donationType.Trim()))
-            return BadRequest(new ApiMessageResponse { Message = "Invalid donation type filter." });
+        var filterError = donationService.ValidateListFilters(donationType, minAmount, maxAmount);
+        if (filterError is not null)
+            return BadRequest(new ApiMessageResponse { Message = filterError });
 
-        if (minAmount.HasValue && maxAmount.HasValue && minAmount.Value > maxAmount.Value)
-            return BadRequest(new ApiMessageResponse { Message = "minAmount cannot be greater than maxAmount." });
+        var result = await donationService.GetAllPagedAsync(
+            organizationId,
+            new DonationListFilters(fromDate, toDate, donationType, minAmount, maxAmount),
+            page,
+            pageSize,
+            cancellationToken);
 
-        if (contactId.HasValue && contactId.Value == Guid.Empty)
-            return BadRequest(new ApiMessageResponse { Message = "contactId cannot be empty when provided." });
+        return Ok(result);
+    }
 
-        var query = dbContext.Donations
-            .AsNoTracking()
-            .Where(d => d.OrganizationId == organizationId);
+    [HttpGet("contact/{contactId:guid}")]
+    [ProducesResponseType(typeof(DonationByContactListResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetAllByContactId(
+        [FromRoute] Guid contactId,
+        [FromQuery] DateTime? fromDate,
+        [FromQuery] DateTime? toDate,
+        [FromQuery] string? donationType,
+        [FromQuery] decimal? minAmount,
+        [FromQuery] decimal? maxAmount,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = ResolveUserIdFromJwt();
+        if (userId is null)
+            return BadRequest(new ApiMessageResponse { Message = "userId is required." });
 
-        if (fromDate.HasValue)
-            query = query.Where(d => d.Date >= fromDate.Value);
+        var access = await userOrganizationAccess.ResolveAsync(userId.Value, cancellationToken);
+        var resolved = access.ToActionResult();
+        if (!resolved.Success)
+            return resolved.Error!;
 
-        if (toDate.HasValue)
-            query = query.Where(d => d.Date <= toDate.Value);
+        var organizationId = resolved.OrganizationId;
 
-        if (!string.IsNullOrWhiteSpace(donationType))
-        {
-            var normalized = donationType.Trim();
-            var canonicalType = AllowedDonationTypes.First(a =>
-                string.Equals(a, normalized, StringComparison.OrdinalIgnoreCase));
-            query = query.Where(d => d.DonationType == canonicalType);
-        }
+        if (contactId == Guid.Empty)
+            return BadRequest(new ApiMessageResponse { Message = "contactId is required." });
 
-        if (contactId.HasValue)
-            query = query.Where(d => d.ContactId == contactId.Value);
+        var filterError = donationService.ValidateListFilters(donationType, minAmount, maxAmount);
+        if (filterError is not null)
+            return BadRequest(new ApiMessageResponse { Message = filterError });
 
-        if (minAmount.HasValue)
-            query = query.Where(d => d.Amount >= minAmount.Value);
+        var result = await donationService.GetAllByContactIdAsync(
+            organizationId,
+            contactId,
+            new DonationListFilters(fromDate, toDate, donationType, minAmount, maxAmount),
+            cancellationToken);
 
-        if (maxAmount.HasValue)
-            query = query.Where(d => d.Amount <= maxAmount.Value);
+        if (result is null)
+            return NotFound(new ApiMessageResponse { Message = "Contact not found." });
 
-        var totalCount = await query.CountAsync(cancellationToken);
-
-        var items = await query
-            .OrderByDescending(d => d.Date)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .Select(d => new DonationResponse
-            {
-                Id = d.Id,
-                OrganizationId = d.OrganizationId,
-                ContactId = d.ContactId,
-                ContactDisplayName = $"{d.Contact.Firstname} {d.Contact.Lastname}".Trim(),
-                Amount = d.Amount,
-                Date = d.Date,
-                DonationType = d.DonationType,
-                PaymentMethod = d.PaymentMethod,
-                Notes = d.Notes,
-                IsAnonymous = d.IsAnonymous,
-                CreatedAt = d.CreatedAt,
-                UpdatedAt = d.UpdatedAt,
-                GeneratedDocument = d.GeneratedDocument == null
-                    ? null
-                    : new GeneratedDocumentSummary
-                    {
-                        Id = d.GeneratedDocument.Id,
-                        DocumentType = d.GeneratedDocument.DocumentType,
-                        OrderNumber = d.GeneratedDocument.OrderNumber,
-                        Status = d.GeneratedDocument.Status,
-                        PdfPath = d.GeneratedDocument.PdfPath
-                    }
-            })
-            .ToListAsync(cancellationToken);
-
-        var totalPages = totalCount == 0 ? 0 : (int)Math.Ceiling(totalCount / (double)pageSize);
-
-        return Ok(new DonationListResponse
-        {
-            Items = items,
-            TotalCount = totalCount,
-            Page = page,
-            PageSize = pageSize,
-            TotalPages = totalPages
-        });
+        return Ok(result);
     }
 
     [HttpGet("{id:guid}")]
@@ -262,7 +239,7 @@ public class DonationController(ApplicationDbContext dbContext, IUserOrganizatio
 
         var organizationId = resolved.OrganizationId;
 
-        var donation = await ProjectDonationAsync(id, organizationId, cancellationToken);
+        var donation = await donationService.GetByIdAsync(organizationId, id, cancellationToken);
         if (donation is null)
             return NotFound(new ApiMessageResponse { Message = "Donation not found." });
 
@@ -301,17 +278,8 @@ public class DonationController(ApplicationDbContext dbContext, IUserOrganizatio
         donation.UpdatedAt = DateTime.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        var details = await ProjectDonationAsync(donation.Id, organizationId, cancellationToken);
+        var details = await donationService.GetByIdAsync(organizationId, donation.Id, cancellationToken);
         return Ok(details);
-    }
-
-    private static string? ValidatePagination(int page, int pageSize)
-    {
-        if (page < 1)
-            return "page must be >= 1.";
-        if (pageSize < 1 || pageSize > MaxPageSize)
-            return $"pageSize must be between 1 and {MaxPageSize}.";
-        return null;
     }
 
     private static string? ValidateRequest(DonationCreateRequest request)
@@ -353,40 +321,6 @@ public class DonationController(ApplicationDbContext dbContext, IUserOrganizatio
         donation.PaymentMethod = request.PaymentMethod?.Trim();
         donation.Notes = request.Notes?.Trim();
         donation.IsAnonymous = request.IsAnonymous;
-    }
-
-    private Task<DonationResponse?> ProjectDonationAsync(Guid donationId, Guid organizationId,
-        CancellationToken cancellationToken)
-    {
-        return dbContext.Donations
-            .AsNoTracking()
-            .Where(d => d.OrganizationId == organizationId && d.Id == donationId)
-            .Select(d => new DonationResponse
-            {
-                Id = d.Id,
-                OrganizationId = d.OrganizationId,
-                ContactId = d.ContactId,
-                ContactDisplayName = $"{d.Contact.Firstname} {d.Contact.Lastname}".Trim(),
-                Amount = d.Amount,
-                Date = d.Date,
-                DonationType = d.DonationType,
-                PaymentMethod = d.PaymentMethod,
-                Notes = d.Notes,
-                IsAnonymous = d.IsAnonymous,
-                CreatedAt = d.CreatedAt,
-                UpdatedAt = d.UpdatedAt,
-                GeneratedDocument = d.GeneratedDocument == null
-                    ? null
-                    : new GeneratedDocumentSummary
-                    {
-                        Id = d.GeneratedDocument.Id,
-                        DocumentType = d.GeneratedDocument.DocumentType,
-                        OrderNumber = d.GeneratedDocument.OrderNumber,
-                        Status = d.GeneratedDocument.Status,
-                        PdfPath = d.GeneratedDocument.PdfPath
-                    }
-            })
-            .FirstOrDefaultAsync(cancellationToken);
     }
 
     private Guid? ResolveUserIdFromJwt()

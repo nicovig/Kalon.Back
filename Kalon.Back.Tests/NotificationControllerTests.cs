@@ -186,17 +186,32 @@ public class NotificationControllerTests
         var controller = CreateController(dbContext);
         SetAuthenticatedUser(controller, userId);
 
-        var result = await controller.GetDashboard(CancellationToken.None);
+        var periodFrom = new DateTime(now.Year, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var periodTo = new DateTime(now.Year, 12, 31, 0, 0, 0, DateTimeKind.Utc);
+        dbContext.Donations.RemoveRange(dbContext.Donations);
+        dbContext.Donations.Add(new Donation
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = organizationId,
+            ContactId = contactMonthlyDue.Id,
+            Amount = 12m,
+            Date = new DateTime(now.Year, 5, 10, 0, 0, 0, DateTimeKind.Utc),
+            DonationType = "financial",
+            CreatedAt = now
+        });
+        await dbContext.SaveChangesAsync();
+
+        var result = await controller.GetDashboard(periodFrom, periodTo, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
         var payload = Assert.IsType<NotificationDashboardResponse>(ok.Value);
         Assert.Single(payload.ContactsToRemind);
         Assert.Equal(contactToRemind.Id, payload.ContactsToRemind[0].ContactId);
         Assert.Equal("Remind Contact", payload.ContactsToRemind[0].DisplayName);
-        Assert.Equal(3, payload.ContactsToSendTaxReceipts.Count);
-        Assert.Contains(payload.ContactsToSendTaxReceipts, x => x.ContactId == contactToRemind.Id);
-        Assert.Contains(payload.ContactsToSendTaxReceipts, x => x.ContactId == contactMonthlyDue.Id);
-        Assert.Contains(payload.ContactsToSendTaxReceipts, x => x.ContactId == contactInstantly.Id);
+        Assert.Single(payload.ContactsToSendTaxReceipts);
+        Assert.Equal(contactMonthlyDue.Id, payload.ContactsToSendTaxReceipts[0].ContactId);
+        Assert.Equal(periodFrom, payload.TaxReceiptPeriodFrom);
+        Assert.Equal(periodTo, payload.TaxReceiptPeriodTo);
         Assert.Equal(1, payload.PhysicalLettersToSendCount);
     }
 
@@ -229,10 +244,14 @@ public class NotificationControllerTests
             SnapshotContactDisplayName = "John Doe",
             SnapshotAmount = 50m,
             SnapshotDonationDate = now.AddDays(-10),
+            SnapshotDonationToDate = now.AddDays(-10),
+            SnapshotDonationCount = 1,
             SnapshotDonationType = "financial",
             Status = GeneratedDocumentStatuses.Generated,
             CreatedAt = now.AddDays(-10)
         };
+        var periodFrom = new DateTime(now.Year, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var periodTo = new DateTime(now.Year, 12, 31, 0, 0, 0, DateTimeKind.Utc);
 
         dbContext.Users.Add(user);
         dbContext.Organizations.Add(organization);
@@ -265,7 +284,7 @@ public class NotificationControllerTests
         var controller = CreateController(dbContext);
         SetAuthenticatedUser(controller, userId);
 
-        var result = await controller.GetDashboard(CancellationToken.None);
+        var result = await controller.GetDashboard(periodFrom, periodTo, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
         var payload = Assert.IsType<NotificationDashboardResponse>(ok.Value);
@@ -283,7 +302,7 @@ public class NotificationControllerTests
             HttpContext = new DefaultHttpContext()
         };
 
-        var result = await controller.GetDashboard(CancellationToken.None);
+        var result = await controller.GetDashboard(null, null, CancellationToken.None);
 
         Assert.IsType<BadRequestObjectResult>(result);
     }
@@ -299,7 +318,7 @@ public class NotificationControllerTests
         var controller = CreateController(dbContext);
         SetAuthenticatedUser(controller, userId);
 
-        var result = await controller.GetDashboard(CancellationToken.None);
+        var result = await controller.GetDashboard(null, null, CancellationToken.None);
 
         Assert.IsType<NotFoundObjectResult>(result);
     }

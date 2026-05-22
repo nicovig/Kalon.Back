@@ -48,6 +48,26 @@ public class SendingServiceTests
             mailService ?? new FakeMailService(),
             documentGenerator ?? new FakeDocumentGeneratorService());
 
+    private static (DateTime From, DateTime To) CivilYearPeriod(int year) =>
+        (new DateTime(year, 1, 1, 0, 0, 0, DateTimeKind.Utc), new DateTime(year, 12, 31, 0, 0, 0, DateTimeKind.Utc));
+
+    private static SendDocumentDto TaxReceiptDto(
+        string channel,
+        IReadOnlyList<Guid> recipientIds,
+        int periodYear,
+        string? subject = null) =>
+        new()
+        {
+            DocumentType = DocumentType.TaxReceipt,
+            Channel = channel,
+            Subject = subject,
+            BodyHtml = "<p>msg</p>",
+            DocumentBodyHtml = "<p>doc</p>",
+            RecipientIds = [.. recipientIds],
+            TaxReceiptPeriodFrom = CivilYearPeriod(periodYear).From,
+            TaxReceiptPeriodTo = CivilYearPeriod(periodYear).To
+        };
+
     private static Organization CreateOrganization(Guid organizationId) => new()
     {
         Id = organizationId,
@@ -91,14 +111,9 @@ public class SendingServiceTests
         await db.SaveChangesAsync();
 
         var service = CreateService(db);
-        await service.GeneratePrintPdfAsync(new SendDocumentDto
-        {
-            DocumentType = DocumentType.TaxReceipt,
-            Channel = "print",
-            BodyHtml = "<p>msg</p>",
-            DocumentBodyHtml = "<p>doc</p>",
-            RecipientIds = [contact.Id]
-        }, organizationId);
+        await service.GeneratePrintPdfAsync(
+            TaxReceiptDto("print", [contact.Id], DateTime.UtcNow.Year),
+            organizationId);
 
         var generatedDoc = await db.GeneratedDocuments.SingleAsync();
         Assert.Equal(DocumentType.Cerfa11580, generatedDoc.DocumentType);
@@ -122,7 +137,8 @@ public class SendingServiceTests
             CreatedAt = DateTime.UtcNow
         };
         db.Contacts.Add(contact);
-        var donationDate = new DateTime(DateTime.UtcNow.Year, 4, 1, 12, 0, 0, DateTimeKind.Utc);
+        var year = DateTime.UtcNow.Year;
+        var donationDate = new DateTime(year, 4, 1, 12, 0, 0, DateTimeKind.Utc);
         db.Donations.Add(new Donation
         {
             Id = Guid.NewGuid(),
@@ -136,14 +152,9 @@ public class SendingServiceTests
         await db.SaveChangesAsync();
 
         var service = CreateService(db);
-        await service.GeneratePrintPdfAsync(new SendDocumentDto
-        {
-            DocumentType = DocumentType.TaxReceipt,
-            Channel = "print",
-            BodyHtml = "<p>msg</p>",
-            DocumentBodyHtml = "<p>doc</p>",
-            RecipientIds = [contactId]
-        }, organizationId);
+        await service.GeneratePrintPdfAsync(
+            TaxReceiptDto("print", [contactId], year),
+            organizationId);
 
         var generatedDoc = await db.GeneratedDocuments.SingleAsync();
         Assert.Equal(50m, generatedDoc.SnapshotAmount);
@@ -196,14 +207,9 @@ public class SendingServiceTests
         await db.SaveChangesAsync();
 
         var service = CreateService(db);
-        await service.GeneratePrintPdfAsync(new SendDocumentDto
-        {
-            DocumentType = DocumentType.TaxReceipt,
-            Channel = "print",
-            BodyHtml = "<p>msg</p>",
-            DocumentBodyHtml = "<p>doc</p>",
-            RecipientIds = [contactId]
-        }, organizationId);
+        await service.GeneratePrintPdfAsync(
+            TaxReceiptDto("print", [contactId], y),
+            organizationId);
 
         var generatedDoc = await db.GeneratedDocuments.SingleAsync();
         Assert.Equal(50m, generatedDoc.SnapshotAmount);
@@ -246,15 +252,9 @@ public class SendingServiceTests
         await db.SaveChangesAsync();
 
         var service = CreateService(db);
-        await service.SendByEmailAsync(new SendDocumentDto
-        {
-            DocumentType = DocumentType.TaxReceipt,
-            Channel = "email",
-            Subject = "Sujet",
-            BodyHtml = "<p>accompagnement</p>",
-            DocumentBodyHtml = "<p>document</p>",
-            RecipientIds = [contactId]
-        }, organizationId);
+        await service.SendByEmailAsync(
+            TaxReceiptDto("email", [contactId], DateTime.UtcNow.Year, "Sujet"),
+            organizationId);
 
         var generatedDoc = await db.GeneratedDocuments.SingleAsync();
         var donation = await db.Donations.FindAsync(donationId);
@@ -294,14 +294,9 @@ public class SendingServiceTests
         await db.SaveChangesAsync();
 
         var service = CreateService(db);
-        await service.GeneratePrintPdfAsync(new SendDocumentDto
-        {
-            DocumentType = DocumentType.TaxReceipt,
-            Channel = "print",
-            BodyHtml = "<p>msg</p>",
-            DocumentBodyHtml = "<p>doc</p>",
-            RecipientIds = [contactId]
-        }, organizationId);
+        await service.GeneratePrintPdfAsync(
+            TaxReceiptDto("print", [contactId], DateTime.UtcNow.Year),
+            organizationId);
 
         var generatedDoc = await db.GeneratedDocuments.SingleAsync();
         var donation = await db.Donations.FindAsync(donationId);
@@ -330,14 +325,9 @@ public class SendingServiceTests
         await db.SaveChangesAsync();
 
         var service = CreateService(db);
-        await service.GeneratePrintPdfAsync(new SendDocumentDto
-        {
-            DocumentType = DocumentType.TaxReceipt,
-            Channel = "print",
-            BodyHtml = "<p>msg</p>",
-            DocumentBodyHtml = "<p>doc</p>",
-            RecipientIds = [contact.Id]
-        }, organizationId);
+        await service.GeneratePrintPdfAsync(
+            TaxReceiptDto("print", [contact.Id], DateTime.UtcNow.Year),
+            organizationId);
 
         var generatedDoc = await db.GeneratedDocuments.SingleAsync();
         Assert.Equal(DocumentType.Cerfa16216, generatedDoc.DocumentType);
@@ -375,14 +365,9 @@ public class SendingServiceTests
         await db.SaveChangesAsync();
 
         var service = CreateService(db);
-        var result = await service.GeneratePrintPdfAsync(new SendDocumentDto
-        {
-            DocumentType = DocumentType.TaxReceipt,
-            Channel = "print",
-            BodyHtml = "<p>msg</p>",
-            DocumentBodyHtml = "<p>doc</p>",
-            RecipientIds = [individual.Id, company.Id]
-        }, organizationId);
+        var result = await service.GeneratePrintPdfAsync(
+            TaxReceiptDto("print", [individual.Id, company.Id], DateTime.UtcNow.Year),
+            organizationId);
 
         var generatedTypes = await db.GeneratedDocuments
             .Select(d => d.DocumentType)
@@ -413,15 +398,9 @@ public class SendingServiceTests
 
         var fakeMailService = new FakeMailService();
         var service = CreateService(db, fakeMailService);
-        await service.SendByEmailAsync(new SendDocumentDto
-        {
-            DocumentType = DocumentType.TaxReceipt,
-            Channel = "email",
-            Subject = "Sujet",
-            BodyHtml = "<p>accompagnement</p>",
-            DocumentBodyHtml = "<p>document</p>",
-            RecipientIds = [contact.Id]
-        }, organizationId);
+        await service.SendByEmailAsync(
+            TaxReceiptDto("email", [contact.Id], DateTime.UtcNow.Year, "Sujet"),
+            organizationId);
 
         var sent = Assert.Single(fakeMailService.SentMessages);
         Assert.NotNull(sent.AttachmentBytes);
@@ -449,14 +428,9 @@ public class SendingServiceTests
         await db.SaveChangesAsync();
 
         var service = CreateService(db);
-        var result = await service.GeneratePrintPdfAsync(new SendDocumentDto
-        {
-            DocumentType = DocumentType.TaxReceipt,
-            Channel = "print",
-            BodyHtml = "<p>accompagnement</p>",
-            DocumentBodyHtml = "<p>document</p>",
-            RecipientIds = [contact.Id]
-        }, organizationId);
+        var result = await service.GeneratePrintPdfAsync(
+            TaxReceiptDto("print", [contact.Id], DateTime.UtcNow.Year),
+            organizationId);
 
         Assert.Equal(2, result.PageCount);
     }
@@ -495,15 +469,9 @@ public class SendingServiceTests
         var fakeMailService = new FakeMailService();
         var service = CreateService(db, fakeMailService);
 
-        await service.SendByEmailAsync(new SendDocumentDto
-        {
-            DocumentType = DocumentType.TaxReceipt,
-            Channel = "email",
-            Subject = "Sujet",
-            BodyHtml = "<p>accompagnement</p>",
-            DocumentBodyHtml = "<p>document</p>",
-            RecipientIds = [individual.Id, company.Id]
-        }, organizationId);
+        await service.SendByEmailAsync(
+            TaxReceiptDto("email", [individual.Id, company.Id], DateTime.UtcNow.Year, "Sujet"),
+            organizationId);
 
         Assert.Equal(2, fakeMailService.SentMessages.Count);
         Assert.All(fakeMailService.SentMessages, m => Assert.NotNull(m.AttachmentBytes));

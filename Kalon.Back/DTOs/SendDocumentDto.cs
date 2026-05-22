@@ -27,6 +27,12 @@ public class SendDocumentDto
 
     [SwaggerSchema(Description = "Liste optionnelle des dons à rattacher au document généré.")]
     public List<Guid>? DonationIds { get; set; }
+
+    [SwaggerSchema(Description = "Date de début de la période couverte par le reçu fiscal (inclus). Requis si DocumentType = tax_receipt.")]
+    public DateTime? TaxReceiptPeriodFrom { get; set; }
+
+    [SwaggerSchema(Description = "Date de fin de la période couverte par le reçu fiscal (inclus). Requis si DocumentType = tax_receipt.")]
+    public DateTime? TaxReceiptPeriodTo { get; set; }
 }
 
 // résultat retourné après un envoi

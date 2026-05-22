@@ -18,7 +18,10 @@ public class NotificationController(
     [ProducesResponseType(typeof(NotificationDashboardResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetDashboard(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetDashboard(
+        [FromQuery] DateTime? taxReceiptPeriodFrom,
+        [FromQuery] DateTime? taxReceiptPeriodTo,
+        CancellationToken cancellationToken)
     {
         var userId = ResolveUserIdFromJwt();
         if (userId is null)
@@ -32,8 +35,19 @@ public class NotificationController(
             case OrganizationAccessOutcome.OrganizationNotFoundForUser:
                 return NotFound(new ApiMessageResponse { Message = "Organization not found for user." });
             case OrganizationAccessOutcome.Ok(var organizationId):
-                var dashboard = await notificationDashboardService.GetDashboardAsync(organizationId, cancellationToken);
-                return Ok(dashboard);
+                try
+                {
+                    var dashboard = await notificationDashboardService.GetDashboardAsync(
+                        organizationId,
+                        cancellationToken,
+                        taxReceiptPeriodFrom,
+                        taxReceiptPeriodTo);
+                    return Ok(dashboard);
+                }
+                catch (ArgumentException ex)
+                {
+                    return BadRequest(new ApiMessageResponse { Message = ex.Message });
+                }
             default:
                 return StatusCode(StatusCodes.Status500InternalServerError,
                     new ApiMessageResponse { Message = "Unexpected organization access state." });

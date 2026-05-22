@@ -231,13 +231,7 @@ public class OrganizationDocumentsController(
                 Date = x.CreatedAt,
                 IsEmail = x.IsEmail,
                 SendAt = $"{x.Contact.Firstname} {x.Contact.Lastname}".Trim(),
-                Status = x.Status == MailLogStatuses.Error
-                    || (x.GeneratedDocument != null && x.GeneratedDocument.Status == GeneratedDocumentStatuses.Error)
-                        ? MailLogStatuses.Error
-                        : x.Status == MailLogStatuses.Printed
-                            || (x.GeneratedDocument != null && x.GeneratedDocument.Status == GeneratedDocumentStatuses.Generated)
-                            ? MailLogStatuses.Printed
-                            : MailLogStatuses.Sent
+                Status = x.Status
             })
             .ToListAsync(cancellationToken);
 
