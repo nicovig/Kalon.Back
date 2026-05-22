@@ -47,22 +47,22 @@ public class Organization
     public string? SenderEmail { get; set; }
     public string? SenderName { get; set; }
 
-    // navigation Logo — null si pas encore uploadé
+    // navigation Logo - null si pas encore uploadé
     public OrganizationLogo? Logo { get; set; }
 
     public ContactStatusSettings? ContactStatusSettings { get; set; }
 
-    // description libre de l'association — utilisée par l'IA pour contextualiser
+    // description libre de l'association - utilisée par l'IA pour contextualiser
     public string? Description { get; set; }
 
-    // année de création — ex: 1994
+    // année de création - ex: 1994
     public int? FoundedYear { get; set; }
 
     // secteur d'activité principal
     // "humanitaire" | "sportif" | "culturel" | "médical" | "éducatif" | "environnemental" | "autre"
     public string? ActivitySector { get; set; }
 
-    // description du public cible — ex: "parrains et marraines de 40 à 70 ans"
+    // description du public cible - ex: "parrains et marraines de 40 à 70 ans"
     public string? AudienceDescription { get; set; }
 
     public List<string> SendingPreferences { get; set; } = ["message", "tax_receipt", "payment_attestation", "membership_certificate"];
@@ -86,9 +86,9 @@ public enum ReceiptFrequency
 
 public static class FiscalStatus
 {
-    public const string GeneralInterest  = "general_interest";  // réduction IR 66% — Cerfa 11580
-    public const string PublicUtility    = "public_utility";    // réduction IR 66% — Cerfa 11580
-    public const string AidOrganization  = "aid_organization";  // réduction IR 75% — loi Coluche
+    public const string GeneralInterest  = "general_interest";  // réduction IR 66% - Cerfa 11580
+    public const string PublicUtility    = "public_utility";    // réduction IR 66% - Cerfa 11580
+    public const string AidOrganization  = "aid_organization";  // réduction IR 75% - loi Coluche
 
     public static readonly IReadOnlyList<string> All = new[]
     {

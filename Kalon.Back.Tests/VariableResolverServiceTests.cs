@@ -56,9 +56,9 @@ public class VariableResolverServiceTests
     [Fact]
     public void Resolve_OrgVariables_ReplacesCorrectly()
     {
-        var template = "De la part de {{nom_association}} — {{email_association}}";
+        var template = "De la part de {{nom_association}} - {{email_association}}";
         var result = _resolver.Resolve(template, MakeContact(), MakeOrg());
-        Assert.Equal("De la part de Magnificat — dg@magnificat.asso.fr", result);
+        Assert.Equal("De la part de Magnificat - dg@magnificat.asso.fr", result);
     }
 
     [Fact]
@@ -88,9 +88,9 @@ public class VariableResolverServiceTests
             c.JobTitle = null;
             c.LastDonation = null;
         });
-        var template = "Tel: {{telephone}} — Métier: {{metier}} — Dernier don: {{date_dernier_don}}";
+        var template = "Tel: {{telephone}} - Métier: {{metier}} - Dernier don: {{date_dernier_don}}";
         var result = _resolver.Resolve(template, contact, MakeOrg());
-        Assert.Equal("Tel:  — Métier:  — Dernier don: jamais", result);
+        Assert.Equal("Tel:  - Métier:  - Dernier don: jamais", result);
     }
 
     [Fact]

@@ -19,14 +19,7 @@ public class DonationController(
     IDonationService donationService)
     : ControllerBase
 {
-    private const int MaxBulkCreateItems = 500;
-
-    private static readonly HashSet<string> AllowedDonationTypes = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "financial",
-        "in_kind",
-        "sponsoring"
-    };
+    private const int MAX_BULK_CREATE_ITEMS = 500;
 
     [HttpPost]
     [ProducesResponseType(typeof(DonationResponse), StatusCodes.Status201Created)]
@@ -86,8 +79,8 @@ public class DonationController(
         if (request.Items.Count == 0)
             return BadRequest(new ApiMessageResponse { Message = "Items is required." });
 
-        if (request.Items.Count > MaxBulkCreateItems)
-            return BadRequest(new ApiMessageResponse { Message = $"Maximum {MaxBulkCreateItems} donations per request." });
+        if (request.Items.Count > MAX_BULK_CREATE_ITEMS)
+            return BadRequest(new ApiMessageResponse { Message = $"Maximum {MAX_BULK_CREATE_ITEMS} donations per request." });
 
         for (var i = 0; i < request.Items.Count; i++)
         {
@@ -290,7 +283,7 @@ public class DonationController(
             return "Amount cannot be negative.";
         if (string.IsNullOrWhiteSpace(request.DonationType))
             return "DonationType is required.";
-        if (!AllowedDonationTypes.Contains(request.DonationType.Trim()))
+        if (!DonationTypes.IsValid(request.DonationType.Trim()))
             return "Invalid donation type.";
         return null;
     }

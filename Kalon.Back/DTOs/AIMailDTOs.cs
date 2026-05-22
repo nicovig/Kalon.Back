@@ -12,7 +12,7 @@ public class AiMailRequestDto
 
 public class AiMailResultDto
 {
-    // objet du mail — peut contenir {{prenom}}
+    // objet du mail - peut contenir {{prenom}}
     public string Subject { get; set; } = "";
 
     // corps HTML prêt à injecter dans TipTap

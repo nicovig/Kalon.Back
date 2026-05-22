@@ -8,7 +8,10 @@ namespace Kalon.Back.Services.Mail;
 
 public interface ISendingService
 {
-    Task<SendDocumentResultDto> SendByEmailAsync(SendDocumentDto dto, Guid organizationId);
+    Task<SendDocumentResultDto> SendByEmailAsync(
+        SendDocumentDto dto,
+        Guid organizationId,
+        IReadOnlyList<EmailAttachmentDto>? userAttachments = null);
     Task<PrintDocumentResultDto> GeneratePrintPdfAsync(SendDocumentDto dto, Guid organizationId);
     Task ConfirmMailedAsync(Guid mailLogId, Guid organizationId);
 }
@@ -34,7 +37,9 @@ public class SendingService : ISendingService
     }
 
     public async Task<SendDocumentResultDto> SendByEmailAsync(
-        SendDocumentDto dto, Guid organizationId)
+        SendDocumentDto dto,
+        Guid organizationId,
+        IReadOnlyList<EmailAttachmentDto>? userAttachments = null)
     {
         var org = await _db.Organizations.Include(o => o.Logo)
             .FirstOrDefaultAsync(o => o.Id == organizationId)
@@ -72,8 +77,7 @@ public class SendingService : ISendingService
                         effectiveDocumentType, contact, org, signatureBlock, dto);
                 }
 
-                byte[]? attachmentBytes = null;
-                string? attachmentFileName = null;
+                var attachments = new List<EmailAttachmentDto>();
                 if (generatedDoc != null)
                 {
                     var attachmentPage = new PrintPageData
@@ -85,11 +89,17 @@ public class SendingService : ISendingService
                         SignatureBlock = signatureBlock,
                         GeneratedDocument = generatedDoc
                     };
-                    attachmentBytes = _documentGenerator.GenerateSingle(attachmentPage);
-                    attachmentFileName = BuildDocumentFileName(effectiveDocumentType, generatedDoc.OrderNumber);
+                    attachments.Add(new EmailAttachmentDto
+                    {
+                        FileName = BuildDocumentFileName(effectiveDocumentType, generatedDoc.OrderNumber),
+                        Content = _documentGenerator.GenerateSingle(attachmentPage),
+                        ContentType = "application/pdf"
+                    });
                 }
 
-                // envoi mail
+                if (userAttachments is { Count: > 0 })
+                    attachments.AddRange(userAttachments);
+
                 await _mailService.SendAsync(new MailMessageDto
                 {
                     ToEmail = contact.Email!,
@@ -98,8 +108,7 @@ public class SendingService : ISendingService
                     BodyHtml = resolvedCompanionHtml,
                     SenderEmail = org.SenderEmail ?? "noreply@kalon-app.fr",
                     SenderName = org.SenderName ?? org.Name,
-                    AttachmentBytes = attachmentBytes,
-                    AttachmentFileName = attachmentFileName
+                    Attachments = attachments
                 });
 
                 // log

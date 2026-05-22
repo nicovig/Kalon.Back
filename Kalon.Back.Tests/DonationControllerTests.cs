@@ -13,7 +13,7 @@ namespace Kalon.Back.Tests;
 
 public class DonationControllerTests
 {
-    private const int DefaultPageSize = 50;
+    private const int DEFAULT_PAGE_SIZE = 50;
 
     private static DonationController CreateController(ApplicationDbContext dbContext) =>
         new(dbContext, new UserOrganizationAccessService(dbContext), new DonationService(dbContext));
@@ -203,7 +203,7 @@ public class DonationControllerTests
             null,
             null,
             1,
-            DefaultPageSize,
+            DEFAULT_PAGE_SIZE,
             CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
@@ -279,7 +279,7 @@ public class DonationControllerTests
             null,
             null,
             1,
-            DefaultPageSize,
+            DEFAULT_PAGE_SIZE,
             CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
@@ -400,7 +400,7 @@ public class DonationControllerTests
             null,
             null,
             0,
-            DefaultPageSize,
+            DEFAULT_PAGE_SIZE,
             CancellationToken.None);
 
         Assert.IsType<BadRequestObjectResult>(result);

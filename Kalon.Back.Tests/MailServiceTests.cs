@@ -66,11 +66,18 @@ public class MailServiceTests
             ToName = "Marie Dupont",
             Subject = "Votre reçu fiscal",
             BodyHtml = "<p>Veuillez trouver votre reçu en pièce jointe.</p>",
-            AttachmentBytes = new byte[] { 0x25, 0x50, 0x44, 0x46 }, // %PDF
-            AttachmentFileName = "recu_2026-001.pdf"
+            Attachments =
+            [
+                new EmailAttachmentDto
+                {
+                    FileName = "recu_2026-001.pdf",
+                    Content = [0x25, 0x50, 0x44, 0x46],
+                    ContentType = "application/pdf"
+                }
+            ]
         };
 
-        Assert.NotNull(dto.AttachmentBytes);
-        Assert.Equal("recu_2026-001.pdf", dto.AttachmentFileName);
+        Assert.Single(dto.Attachments);
+        Assert.Equal("recu_2026-001.pdf", dto.Attachments[0].FileName);
     }
 }

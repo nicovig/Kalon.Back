@@ -1,7 +1,7 @@
 ﻿namespace Kalon.Back.Models;
 
 // Paramètres de calcul automatique du statut des contacts
-// Stockés par organisation — chaque asso définit ses propres règles
+// Stockés par organisation - chaque asso définit ses propres règles
 
 public class ContactStatusSettings
 {
@@ -22,4 +22,11 @@ public class ContactStatusSettings
 
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
+}
+
+public static class DefaultTagValue
+{
+    public const int DefaultNewDurationDays = 30;
+    public const int DefaultToRemindAfterMonths = 12;
+    public const int DefaultInactiveAfterMonths = 24;
 }

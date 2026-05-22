@@ -16,7 +16,7 @@ namespace Kalon.Back.Controllers;
 public class ContactController(ApplicationDbContext dbContext, IUserOrganizationAccessService userOrganizationAccess, IPlanService planService)
     : ControllerBase
 {
-    private const int MaxBulkCreateItems = 500;
+    private const int MAX_BULK_CREATE_ITEMS = 500;
 
     [HttpPost]
     [ProducesResponseType(typeof(ContactResponse), StatusCodes.Status201Created)]
@@ -97,8 +97,8 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
         if (request.Items.Count == 0)
             return BadRequest(new ApiMessageResponse { Message = "Items is required." });
 
-        if (request.Items.Count > MaxBulkCreateItems)
-            return BadRequest(new ApiMessageResponse { Message = $"Maximum {MaxBulkCreateItems} contacts per request." });
+        if (request.Items.Count > MAX_BULK_CREATE_ITEMS)
+            return BadRequest(new ApiMessageResponse { Message = $"Maximum {MAX_BULK_CREATE_ITEMS} contacts per request." });
 
         for (var i = 0; i < request.Items.Count; i++)
         {

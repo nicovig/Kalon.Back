@@ -1,3 +1,5 @@
+using System.Runtime.Serialization;
+
 namespace Kalon.Back.Models;
 
 // Donation.cs
@@ -10,7 +12,7 @@ public class Donation
     public Guid ContactId { get; set; }
     public Contact Contact { get; set; }
 
-    // montant en euros — 0 si don en nature (valorisation optionnelle)
+    // montant en euros - 0 si don en nature (valorisation optionnelle)
     public decimal Amount { get; set; }
     public DateTime Date { get; set; }
 
@@ -20,7 +22,7 @@ public class Donation
     // "bank_transfer" | "cash" | "check" | "other"
     public string? PaymentMethod { get; set; }
 
-    // note libre — ex: "Don en mémoire de...", "Versement en deux fois"
+    // note libre - ex: "Don en mémoire de...", "Versement en deux fois"
     public string? Notes { get; set; }
 
     // si true : le nom du donateur n'apparaît pas sur le reçu fiscal
@@ -29,7 +31,25 @@ public class Donation
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 
-    // navigation vers le reçu fiscal — null si pas encore généré
+    // navigation vers le reçu fiscal - null si pas encore généré
     public Guid? GeneratedDocumentId { get; set; }
     public GeneratedDocument? GeneratedDocument { get; set; }
+}
+
+
+public static class DonationTypes
+{
+    public const string Financial = "financial";
+    public const string InKind = "in_kind";
+    public const string Sponsoring = "sponsoring";
+
+    public static readonly IReadOnlyList<string> All = new[]
+    {
+        Financial,
+        InKind,
+        Sponsoring,
+    };
+
+    public static bool IsValid(string? value) =>
+        value is not null && All.Contains(value);
 }

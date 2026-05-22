@@ -29,7 +29,7 @@ public class MailService : IMailService
     {
         var email = new MimeMessage();
 
-        // expéditeur — soit le domaine de l'asso (si configuré) soit le fallback Kalon
+        // expéditeur - soit le domaine de l'asso (si configuré) soit le fallback Kalon
         var senderEmail = message.SenderEmail ?? _options.DefaultSenderEmail;
         var senderName = message.SenderName ?? _options.DefaultSenderName;
 
@@ -54,8 +54,17 @@ public class MailService : IMailService
             TextBody = StripHtml(message.BodyHtml)
         };
 
-        // pièce jointe PDF (reçu fiscal, attestation...)
-        if (message.AttachmentBytes != null && message.AttachmentFileName != null)
+        foreach (var attachment in message.Attachments)
+        {
+            builder.Attachments.Add(
+                attachment.FileName,
+                attachment.Content,
+                ContentType.Parse(attachment.ContentType));
+        }
+
+        if (message.Attachments.Count == 0
+            && message.AttachmentBytes != null
+            && message.AttachmentFileName != null)
         {
             builder.Attachments.Add(
                 message.AttachmentFileName,

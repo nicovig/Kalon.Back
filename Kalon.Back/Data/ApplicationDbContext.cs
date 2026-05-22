@@ -79,7 +79,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .HasForeignKey(c => c.OrganizationId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // owned entities — stockées dans la table contacts
+            // owned entities - stockées dans la table contacts
             entity.OwnsOne(c => c.Address, address =>
             {
                 address.Property(a => a.Street).HasColumnName("address_street");
@@ -162,7 +162,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .HasForeignKey(r => r.OrganizationId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // OrderNumber peut être null (membership_certificate) — index partiel pas supporté
+            // OrderNumber peut être null (membership_certificate) - index partiel pas supporté
             // nativement par EF Core, on garde juste l'index non-unique
             entity.HasIndex(r => new { r.OrganizationId, r.OrderNumber });
             entity.HasIndex(r => new { r.OrganizationId, r.Status });
@@ -231,7 +231,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .HasForeignKey(q => q.OrganizationId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // index unique — une seule ligne par org/type/période
+            // index unique - une seule ligne par org/type/période
             entity.HasIndex(q => new { q.OrganizationId, q.QuotaType, q.Period })
                 .IsUnique();
 

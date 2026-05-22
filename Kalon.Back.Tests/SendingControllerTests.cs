@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using System.Text;
+using System.Text.Json;
 using Kalon.Back.Controllers;
 using Kalon.Back.Configuration;
 using Kalon.Back.Dtos;
@@ -26,11 +28,17 @@ public class SendingControllerTests
         public bool ThrowOnConfirm { get; set; }
         public bool ThrowOnSend { get; set; }
         public Guid? LastConfirmedMailLogId { get; private set; }
+        public IReadOnlyList<EmailAttachmentDto>? LastUserAttachments { get; private set; }
 
-        public Task<SendDocumentResultDto> SendByEmailAsync(SendDocumentDto dto, Guid organizationId)
+        public Task<SendDocumentResultDto> SendByEmailAsync(
+            SendDocumentDto dto,
+            Guid organizationId,
+            IReadOnlyList<EmailAttachmentDto>? userAttachments = null)
         {
             if (ThrowOnSend)
                 throw new InvalidOperationException("Association introuvable.");
+
+            LastUserAttachments = userAttachments;
 
             return Task.FromResult(new SendDocumentResultDto
             {
@@ -148,14 +156,18 @@ public class SendingControllerTests
         var service = new FakeSendingService();
         var controller = CreateController(service, Guid.NewGuid());
 
-        var result = await controller.Send(new SendDocumentDto
-        {
-            DocumentType = DocumentType.TaxReceipt,
-            Channel = "email",
-            Subject = "Sujet",
-            BodyHtml = "<p>Accompagnement</p>",
-            RecipientIds = [Guid.NewGuid()]
-        });
+        var result = await controller.Send(
+            new SendDocumentDto
+            {
+                DocumentType = DocumentType.TaxReceipt,
+                Channel = "email",
+                Subject = "Sujet",
+                BodyHtml = "<p>Accompagnement</p>",
+                RecipientIds = [Guid.NewGuid()]
+            },
+            null,
+            null,
+            CancellationToken.None);
 
         var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
         var payload = Assert.IsType<ApiMessageResponse>(badRequest.Value);
@@ -224,5 +236,74 @@ public class SendingControllerTests
         var notFound = Assert.IsType<NotFoundObjectResult>(result);
         var payload = Assert.IsType<ApiMessageResponse>(notFound.Value);
         Assert.Equal("Courrier introuvable.", payload.Message);
+    }
+
+    [Fact]
+    public async Task Send_ReturnsBadRequest_WhenMoreThanTwoAttachments()
+    {
+        var service = new FakeSendingService();
+        var controller = CreateController(service, Guid.NewGuid());
+        controller.HttpContext.Request.ContentType = "multipart/form-data";
+
+        var payload = JsonSerializer.Serialize(new SendDocumentDto
+        {
+            DocumentType = DocumentType.Message,
+            Channel = "email",
+            BodyHtml = "<p>Test</p>",
+            RecipientIds = [Guid.NewGuid()]
+        });
+
+        var result = await controller.Send(
+            null,
+            new SendDocumentFormRequest { Payload = payload },
+            [
+                CreateFormFile("a.pdf"),
+                CreateFormFile("b.pdf"),
+                CreateFormFile("c.pdf")
+            ],
+            CancellationToken.None);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
+        var apiMessage = Assert.IsType<ApiMessageResponse>(badRequest.Value);
+        Assert.Equal("Maximum 2 attachments allowed.", apiMessage.Message);
+    }
+
+    [Fact]
+    public async Task Send_PassesUserAttachments_WhenMultipartRequestIsValid()
+    {
+        var service = new FakeSendingService();
+        var controller = CreateController(service, Guid.NewGuid());
+        controller.HttpContext.Request.ContentType = "multipart/form-data";
+
+        var payload = JsonSerializer.Serialize(new SendDocumentDto
+        {
+            DocumentType = DocumentType.Message,
+            Channel = "email",
+            BodyHtml = "<p>Test</p>",
+            RecipientIds = [Guid.NewGuid()]
+        });
+
+        var result = await controller.Send(
+            null,
+            new SendDocumentFormRequest { Payload = payload },
+            [CreateFormFile("brochure.pdf"), CreateFormFile("photo.jpg", "image/jpeg")],
+            CancellationToken.None);
+
+        Assert.IsType<OkObjectResult>(result.Result);
+        Assert.NotNull(service.LastUserAttachments);
+        Assert.Equal(2, service.LastUserAttachments!.Count);
+        Assert.Equal("brochure.pdf", service.LastUserAttachments[0].FileName);
+        Assert.Equal("photo.jpg", service.LastUserAttachments[1].FileName);
+    }
+
+    private static IFormFile CreateFormFile(string fileName, string contentType = "application/pdf")
+    {
+        var bytes = Encoding.UTF8.GetBytes("file-content");
+        var stream = new MemoryStream(bytes);
+        return new FormFile(stream, 0, bytes.Length, "attachments", fileName)
+        {
+            Headers = new HeaderDictionary(),
+            ContentType = contentType
+        };
     }
 }

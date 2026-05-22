@@ -403,9 +403,91 @@ public class SendingServiceTests
             organizationId);
 
         var sent = Assert.Single(fakeMailService.SentMessages);
-        Assert.NotNull(sent.AttachmentBytes);
-        Assert.NotEmpty(sent.AttachmentBytes!);
-        Assert.False(string.IsNullOrWhiteSpace(sent.AttachmentFileName));
+        var attachment = Assert.Single(sent.Attachments);
+        Assert.NotEmpty(attachment.Content);
+        Assert.False(string.IsNullOrWhiteSpace(attachment.FileName));
+        Assert.Equal("application/pdf", attachment.ContentType);
+    }
+
+    [Fact]
+    public async Task SendByEmailAsync_WithUserAttachments_IncludesThemInEmail()
+    {
+        using var db = CreateDbContext(Guid.NewGuid().ToString());
+        var organizationId = Guid.NewGuid();
+        db.Organizations.Add(CreateOrganization(organizationId));
+        var contact = new Contact
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = organizationId,
+            Kind = ContactKinds.Donor,
+            Firstname = "Marie",
+            Lastname = "Dupont",
+            Email = "marie@demo.org",
+            CreatedAt = DateTime.UtcNow
+        };
+        db.Contacts.Add(contact);
+        await db.SaveChangesAsync();
+
+        var fakeMailService = new FakeMailService();
+        var service = CreateService(db, fakeMailService);
+        var userAttachments = new List<EmailAttachmentDto>
+        {
+            new() { FileName = "brochure.pdf", Content = [0x25, 0x50], ContentType = "application/pdf" },
+            new() { FileName = "photo.jpg", Content = [0xFF, 0xD8], ContentType = "image/jpeg" }
+        };
+
+        await service.SendByEmailAsync(
+            new SendDocumentDto
+            {
+                DocumentType = DocumentType.Message,
+                Channel = "email",
+                BodyHtml = "<p>Relance</p>",
+                RecipientIds = [contact.Id]
+            },
+            organizationId,
+            userAttachments);
+
+        var sent = Assert.Single(fakeMailService.SentMessages);
+        Assert.Equal(2, sent.Attachments.Count);
+        Assert.Equal("brochure.pdf", sent.Attachments[0].FileName);
+        Assert.Equal("photo.jpg", sent.Attachments[1].FileName);
+    }
+
+    [Fact]
+    public async Task SendByEmailAsync_WithGeneratedDocumentAndUserAttachments_IncludesAll()
+    {
+        using var db = CreateDbContext(Guid.NewGuid().ToString());
+        var organizationId = Guid.NewGuid();
+        db.Organizations.Add(CreateOrganization(organizationId));
+        var contact = new Contact
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = organizationId,
+            Kind = ContactKinds.Donor,
+            Firstname = "Marie",
+            Lastname = "Dupont",
+            Email = "marie@demo.org",
+            CreatedAt = DateTime.UtcNow
+        };
+        db.Contacts.Add(contact);
+        await db.SaveChangesAsync();
+
+        var fakeMailService = new FakeMailService();
+        var service = CreateService(db, fakeMailService);
+        var userAttachments = new List<EmailAttachmentDto>
+        {
+            new() { FileName = "extra.pdf", Content = [0x01], ContentType = "application/pdf" }
+        };
+
+        await service.SendByEmailAsync(
+            TaxReceiptDto("email", [contact.Id], DateTime.UtcNow.Year, "Sujet"),
+            organizationId,
+            userAttachments);
+
+        var sent = Assert.Single(fakeMailService.SentMessages);
+        Assert.Equal(2, sent.Attachments.Count);
+        Assert.Equal("application/pdf", sent.Attachments[0].ContentType);
+        Assert.Equal("extra.pdf", sent.Attachments[1].FileName);
     }
 
     [Fact]
@@ -474,7 +556,7 @@ public class SendingServiceTests
             organizationId);
 
         Assert.Equal(2, fakeMailService.SentMessages.Count);
-        Assert.All(fakeMailService.SentMessages, m => Assert.NotNull(m.AttachmentBytes));
+        Assert.All(fakeMailService.SentMessages, m => Assert.NotEmpty(m.Attachments));
 
         var generatedTypes = await db.GeneratedDocuments
             .Select(d => d.DocumentType)

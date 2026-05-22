@@ -74,7 +74,7 @@ public class DocumentGeneratorService : IDocumentGeneratorService
 
             page.Footer().AlignCenter().Text(t =>
             {
-                t.Span("Document généré par Kalon — kalon-app.fr")
+                t.Span("Document généré par Kalon - kalon-app.fr")
                     .FontSize(8).FontColor(Colors.Grey.Medium);
             });
         });
@@ -87,7 +87,7 @@ public class DocumentGeneratorService : IDocumentGeneratorService
         var org = data.Organization;
         var contact = data.Contact;
 
-        // en-tête expéditeur (asso) — haut gauche
+        // en-tête expéditeur (asso) - haut gauche
         col.Item().Text(t =>
         {
             t.Line(org.Name).Bold().FontSize(12);
@@ -101,7 +101,7 @@ public class DocumentGeneratorService : IDocumentGeneratorService
 
         col.Item().PaddingVertical(20);
 
-        // adresse destinataire — haut droite (fenêtre enveloppe)
+        // adresse destinataire - haut droite (fenêtre enveloppe)
         col.Item().AlignRight().Text(t =>
         {
             var name = DisplayName(contact);
@@ -135,7 +135,7 @@ public class DocumentGeneratorService : IDocumentGeneratorService
             col.Item().PaddingVertical(12);
         }
 
-        // corps du mail — HTML simplifié
+        // corps du mail - HTML simplifié
         col.Item().Text(StripHtml(data.ResolvedHtml)).FontSize(11);
 
         col.Item().PaddingVertical(24);

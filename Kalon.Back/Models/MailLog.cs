@@ -27,8 +27,8 @@ public class MailLog
 
     public string? ErrorMessage { get; set; }   // si Status == "error"
 
-    public DateTime? PrintedAt { get; set; }    // si IsEmail == false — PDF généré
-    public DateTime? MailedAt { get; set; }     // si IsEmail == false — confirmé envoyé
+    public DateTime? PrintedAt { get; set; }    // si IsEmail == false - PDF généré
+    public DateTime? MailedAt { get; set; }     // si IsEmail == false - confirmé envoyé
     public string? MailedBy { get; set; }       // prénom de qui a confirmé physiquement
 
     public DateTime CreatedAt { get; set; }

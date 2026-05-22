@@ -28,7 +28,7 @@ public class AiMailGeneratorService : IAiMailGeneratorService
     public async Task<AiMailResultDto> GenerateAsync(
         AiMailRequestDto request, Organization org)
     {
-        // ── Couche 1 — System prompt (jamais visible par l'utilisateur) ──
+        // ── Couche 1 - System prompt (jamais visible par l'utilisateur) ──
         var systemPrompt = """
             Tu es un expert en communication associative française.
             Tu rédiges des mails chaleureux, authentiques et efficaces pour des associations.
@@ -42,10 +42,10 @@ public class AiMailGeneratorService : IAiMailGeneratorService
             Le bodyHtml contient uniquement des balises <p>, <strong>, <em>, <br>.
             """;
 
-        // ── Couche 2 — Contexte asso (automatique depuis les paramètres) ─
+        // ── Couche 2 - Contexte asso (automatique depuis les paramètres) ─
         var orgContext = BuildOrgContext(org);
 
-        // ── Couche 3 — Intention utilisateur ─────────────────────────────
+        // ── Couche 3 - Intention utilisateur ─────────────────────────────
         var emailTypeLabel = TranslateEmailType(request.EmailType);
         var userPrompt = $"""
             Rédige un mail de type "{emailTypeLabel}".

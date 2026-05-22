@@ -47,7 +47,7 @@ public class VariableResolverService : IVariableResolverService
             .Replace("{{enterprise_name}}", contact.Enterprise?.Name ?? "")
             .Replace("{{siret_entreprise}}", contact.Enterprise?.Siret ?? "")
 
-            // ── dons (calculés — [NotMapped]) ─────────────────────
+            // ── dons (calculés - [NotMapped]) ─────────────────────
             .Replace("{{total_dons}}",
                 contact.TotalDonation.ToString("C", new System.Globalization.CultureInfo("fr-FR")))
             .Replace("{{totalDonation}}",

@@ -1,4 +1,5 @@
-﻿using Kalon.Back.Dtos;
+﻿using System.Text.Json;
+using Kalon.Back.Dtos;
 using Kalon.Back.Dtos.Errors;
 using Kalon.Back.DTOs;
 using Kalon.Back.Models;
@@ -6,6 +7,7 @@ using Kalon.Back.Services;
 using Kalon.Back.Services.Mail;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace Kalon.Back.Controllers;
@@ -40,16 +42,51 @@ public class SendingController : ControllerBase
     }
 
     [HttpPost("send")]
+    [Consumes("application/json", "multipart/form-data")]
     [SwaggerOperation(
         Summary = "Envoi email",
-        Description = "Envoie un email. Si DocumentType = tax_receipt, le backend choisit automatiquement le CERFA par destinataire: cerfa_11580 (particulier) ou cerfa_16216 (entreprise), y compris pour des listes RecipientIds mixtes."
+        Description = "Envoie un email (JSON ou multipart/form-data). Multipart: champ 'payload' (JSON SendDocumentDto) + jusqu'à 2 fichiers 'attachments'. Si DocumentType = tax_receipt, le backend choisit automatiquement le CERFA par destinataire."
     )]
     [ProducesResponseType(typeof(SendDocumentResultDto), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<SendDocumentResultDto>> Send(
-        [FromBody] SendDocumentDto dto)
+        [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] SendDocumentDto? dto,
+        [FromForm] SendDocumentFormRequest? form,
+        [FromForm] List<IFormFile>? attachments,
+        CancellationToken cancellationToken)
     {
+        IReadOnlyList<EmailAttachmentDto>? userAttachments = null;
+
+        if (Request.HasFormContentType)
+        {
+            if (form is null || string.IsNullOrWhiteSpace(form.Payload))
+                return BadRequest(new ApiMessageResponse { Message = "Form field 'payload' is required for multipart requests." });
+
+            try
+            {
+                dto = JsonSerializer.Deserialize<SendDocumentDto>(form.Payload,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            }
+            catch (JsonException)
+            {
+                return BadRequest(new ApiMessageResponse { Message = "Invalid JSON in form field 'payload'." });
+            }
+
+            if (dto is null)
+                return BadRequest(new ApiMessageResponse { Message = "Invalid JSON in form field 'payload'." });
+
+            var (parsedAttachments, attachmentError) = await SendingEmailAttachments.ParseAsync(
+                attachments, cancellationToken);
+            if (attachmentError is not null)
+                return BadRequest(new ApiMessageResponse { Message = attachmentError });
+
+            userAttachments = parsedAttachments;
+        }
+
+        if (dto is null)
+            return BadRequest(new ApiMessageResponse { Message = "Request body is required." });
+
         if (!DocumentType.IsValid(dto.DocumentType))
             return BadRequest(new ApiMessageResponse { Message = "Type de document invalide" });
 
@@ -88,7 +125,7 @@ public class SendingController : ControllerBase
 
         try
         {
-            var result = await _sendingService.SendByEmailAsync(dto, organizationId);
+            var result = await _sendingService.SendByEmailAsync(dto, organizationId, userAttachments);
             return Ok(result);
         }
         catch (QuotaExceededException qex)

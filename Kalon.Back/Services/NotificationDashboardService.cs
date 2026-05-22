@@ -16,10 +16,6 @@ public interface INotificationDashboardService
 
 public class NotificationDashboardService(ApplicationDbContext dbContext) : INotificationDashboardService
 {
-    private const int DefaultNewDurationDays = 30;
-    private const int DefaultToRemindAfterMonths = 12;
-    private const int DefaultInactiveAfterMonths = 24;
-
     public async Task<NotificationDashboardResponse> GetDashboardAsync(
         Guid organizationId,
         CancellationToken cancellationToken,
@@ -96,9 +92,9 @@ public class NotificationDashboardService(ApplicationDbContext dbContext) : INot
             .CountAsync(cancellationToken);
 
         var now = DateTime.UtcNow;
-        var newDurationDays = settings?.NewDurationDays ?? DefaultNewDurationDays;
-        var toRemindAfterMonths = settings?.ToRemindAfterMonths ?? DefaultToRemindAfterMonths;
-        var inactiveAfterMonths = settings?.InactiveAfterMonths ?? DefaultInactiveAfterMonths;
+        var newDurationDays = settings?.NewDurationDays ?? DefaultTagValue.DefaultNewDurationDays;
+        var toRemindAfterMonths = settings?.ToRemindAfterMonths ?? DefaultTagValue.DefaultToRemindAfterMonths;
+        var inactiveAfterMonths = settings?.InactiveAfterMonths ?? DefaultTagValue.DefaultInactiveAfterMonths;
 
         var defaultFrequency = ResolveReceiptFrequency(null, organization.DefaultReceiptFrequency);
         var taxReceiptPeriod = TaxReceiptPeriodHelper.ResolveOrDefault(

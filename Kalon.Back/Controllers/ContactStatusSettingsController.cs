@@ -16,10 +16,6 @@ public class ContactStatusSettingsController(
     ApplicationDbContext dbContext,
     IUserOrganizationAccessService userOrganizationAccess) : ControllerBase
 {
-    private const int DefaultNewDurationDays = 30;
-    private const int DefaultToRemindAfterMonths = 12;
-    private const int DefaultInactiveAfterMonths = 24;
-
     [HttpGet]
     [ProducesResponseType(typeof(ContactStatusSettings), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
@@ -127,9 +123,9 @@ public class ContactStatusSettingsController(
             settings.UpdatedAt = DateTime.UtcNow;
         }
 
-        settings.NewDurationDays = DefaultNewDurationDays;
-        settings.ToRemindAfterMonths = DefaultToRemindAfterMonths;
-        settings.InactiveAfterMonths = DefaultInactiveAfterMonths;
+        settings.NewDurationDays = DefaultTagValue.DefaultNewDurationDays;
+        settings.ToRemindAfterMonths = DefaultTagValue.DefaultToRemindAfterMonths;
+        settings.InactiveAfterMonths = DefaultTagValue.DefaultInactiveAfterMonths;
 
         await dbContext.SaveChangesAsync(cancellationToken);
         return Ok(settings);
@@ -138,9 +134,9 @@ public class ContactStatusSettingsController(
     private static ContactStatusSettings DefaultModel(Guid organizationId) => new()
     {
         OrganizationId = organizationId,
-        NewDurationDays = DefaultNewDurationDays,
-        ToRemindAfterMonths = DefaultToRemindAfterMonths,
-        InactiveAfterMonths = DefaultInactiveAfterMonths
+        NewDurationDays = DefaultTagValue.DefaultNewDurationDays,
+        ToRemindAfterMonths = DefaultTagValue.DefaultToRemindAfterMonths,
+        InactiveAfterMonths = DefaultTagValue.DefaultInactiveAfterMonths
     };
 
     private static string? Validate(ContactStatusSettingsUpsertRequest request)

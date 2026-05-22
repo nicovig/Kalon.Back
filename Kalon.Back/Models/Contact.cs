@@ -14,7 +14,7 @@ public class Contact
 
     public string Kind { get; set; }
 
-    // true si le contact est décédé — exclu de tous les envois et calculs
+    // true si le contact est décédé - exclu de tous les envois et calculs
     // les autres statuts (new, to_remind, inactive, active) sont calculés dynamiquement
     public bool IsOut { get; set; }
 
@@ -29,21 +29,21 @@ public class Contact
     // "male" | "female" | "other"
     public string? Gender { get; set; }
 
-    // note libre sur le contact — ex: "Appeler avant de relancer"
+    // note libre sur le contact - ex: "Appeler avant de relancer"
     public string? Notes { get; set; }
 
-    // département calculé depuis PostalCode — stocké pour la cartographie
+    // département calculé depuis PostalCode - stocké pour la cartographie
     // ex: "44", "75", "971" (DOM)
     public string? Department { get; set; }
 
-    // préférence d'envoi des reçus fiscaux — surcharge le défaut de l'organisation
+    // préférence d'envoi des reçus fiscaux - surcharge le défaut de l'organisation
     // "instantly" | "monthly" | "quarterly" | "semesterly" | "yearly"
     public string? PreferredFrequencySendingReceipt { get; set; }
 
-    // ── adresse (owned entity — stockée dans la table contacts) ───
+    // ── adresse (owned entity - stockée dans la table contacts) ───
     public ContactAddress? Address { get; set; }
 
-    // ── données entreprise (owned entity — stockée dans la table contacts) ─
+    // ── données entreprise (owned entity - stockée dans la table contacts) ─
     // renseigné uniquement si Kind == "company"
     public ContactEnterprise? Enterprise { get; set; }
 
@@ -51,7 +51,7 @@ public class Contact
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 
-    // ── champs calculés — non mappés en base ──────────────
+    // ── champs calculés - non mappés en base ──────────────
     // calculés via requête SQL agrégée dans le service
     [NotMapped]
     public decimal TotalDonation { get; set; }
@@ -76,7 +76,7 @@ public class Contact
 }
 
 // ContactAddress.cs
-// Owned entity — pas de table séparée, colonnes préfixées dans "contacts"
+// Owned entity - pas de table séparée, colonnes préfixées dans "contacts"
 // ex: Address_Street, Address_PostalCode...
 public class ContactAddress
 {
@@ -89,7 +89,7 @@ public class ContactAddress
 }
 
 // ContactEnterprise.cs
-// Owned entity — pas de table séparée, colonnes préfixées dans "contacts"
+// Owned entity - pas de table séparée, colonnes préfixées dans "contacts"
 // renseigné uniquement si Contact.Kind == "company"
 public class ContactEnterprise
 {
@@ -97,8 +97,8 @@ public class ContactEnterprise
     public string? Siret { get; set; }
 
     // type de relation avec l'association
-    // "mecenat"   → don sans contrepartie — Cerfa 16216 possible
-    // "sponsoring" → contrepartie publicitaire — pas de Cerfa mécénat
+    // "mecenat"   → don sans contrepartie - Cerfa 16216 possible
+    // "sponsoring" → contrepartie publicitaire - pas de Cerfa mécénat
     // "donation"  → don simple hors cadre fiscal
     public string? SupportKind { get; set; }
 
