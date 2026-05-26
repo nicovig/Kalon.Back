@@ -156,18 +156,16 @@ public class SendingControllerTests
         var service = new FakeSendingService();
         var controller = CreateController(service, Guid.NewGuid());
 
-        var result = await controller.Send(
-            new SendDocumentDto
-            {
-                DocumentType = DocumentType.TaxReceipt,
-                Channel = "email",
-                Subject = "Sujet",
-                BodyHtml = "<p>Accompagnement</p>",
-                RecipientIds = [Guid.NewGuid()]
-            },
-            null,
-            null,
-            CancellationToken.None);
+        SetJsonRequest(controller, new SendDocumentDto
+        {
+            DocumentType = DocumentType.TaxReceipt,
+            Channel = "email",
+            Subject = "Sujet",
+            BodyHtml = "<p>Accompagnement</p>",
+            RecipientIds = [Guid.NewGuid()]
+        });
+
+        var result = await controller.Send(CancellationToken.None);
 
         var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
         var payload = Assert.IsType<ApiMessageResponse>(badRequest.Value);
@@ -243,7 +241,6 @@ public class SendingControllerTests
     {
         var service = new FakeSendingService();
         var controller = CreateController(service, Guid.NewGuid());
-        controller.HttpContext.Request.ContentType = "multipart/form-data";
 
         var payload = JsonSerializer.Serialize(new SendDocumentDto
         {
@@ -252,16 +249,14 @@ public class SendingControllerTests
             BodyHtml = "<p>Test</p>",
             RecipientIds = [Guid.NewGuid()]
         });
+        SetMultipartForm(controller, payload,
+        [
+            CreateFormFile("a.pdf"),
+            CreateFormFile("b.pdf"),
+            CreateFormFile("c.pdf")
+        ]);
 
-        var result = await controller.Send(
-            null,
-            new SendDocumentFormRequest { Payload = payload },
-            [
-                CreateFormFile("a.pdf"),
-                CreateFormFile("b.pdf"),
-                CreateFormFile("c.pdf")
-            ],
-            CancellationToken.None);
+        var result = await controller.Send(CancellationToken.None);
 
         var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
         var apiMessage = Assert.IsType<ApiMessageResponse>(badRequest.Value);
@@ -273,7 +268,6 @@ public class SendingControllerTests
     {
         var service = new FakeSendingService();
         var controller = CreateController(service, Guid.NewGuid());
-        controller.HttpContext.Request.ContentType = "multipart/form-data";
 
         var payload = JsonSerializer.Serialize(new SendDocumentDto
         {
@@ -282,18 +276,37 @@ public class SendingControllerTests
             BodyHtml = "<p>Test</p>",
             RecipientIds = [Guid.NewGuid()]
         });
+        SetMultipartForm(controller, payload, [CreateFormFile("brochure.pdf"), CreateFormFile("photo.jpg", "image/jpeg")]);
 
-        var result = await controller.Send(
-            null,
-            new SendDocumentFormRequest { Payload = payload },
-            [CreateFormFile("brochure.pdf"), CreateFormFile("photo.jpg", "image/jpeg")],
-            CancellationToken.None);
+        var result = await controller.Send(CancellationToken.None);
 
         Assert.IsType<OkObjectResult>(result.Result);
         Assert.NotNull(service.LastUserAttachments);
         Assert.Equal(2, service.LastUserAttachments!.Count);
         Assert.Equal("brochure.pdf", service.LastUserAttachments[0].FileName);
         Assert.Equal("photo.jpg", service.LastUserAttachments[1].FileName);
+    }
+
+    private static void SetJsonRequest(SendingController controller, SendDocumentDto dto)
+    {
+        var json = JsonSerializer.Serialize(dto);
+        controller.HttpContext.Request.ContentType = "application/json";
+        controller.HttpContext.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(json));
+    }
+
+    private static void SetMultipartForm(SendingController controller, string payload, IReadOnlyList<IFormFile> attachments)
+    {
+        var files = new FormFileCollection();
+        foreach (var attachment in attachments)
+            files.Add(attachment);
+
+        controller.HttpContext.Request.ContentType = "multipart/form-data; boundary=test";
+        controller.HttpContext.Request.Form = new FormCollection(
+            new Dictionary<string, Microsoft.Extensions.Primitives.StringValues>
+            {
+                ["payload"] = payload
+            },
+            files);
     }
 
     private static IFormFile CreateFormFile(string fileName, string contentType = "application/pdf")

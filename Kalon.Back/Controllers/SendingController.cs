@@ -7,7 +7,6 @@ using Kalon.Back.Services;
 using Kalon.Back.Services.Mail;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace Kalon.Back.Controllers;
@@ -50,22 +49,21 @@ public class SendingController : ControllerBase
     [ProducesResponseType(typeof(SendDocumentResultDto), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<SendDocumentResultDto>> Send(
-        [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] SendDocumentDto? dto,
-        [FromForm] SendDocumentFormRequest? form,
-        [FromForm] List<IFormFile>? attachments,
-        CancellationToken cancellationToken)
+    public async Task<ActionResult<SendDocumentResultDto>> Send(CancellationToken cancellationToken)
     {
         IReadOnlyList<EmailAttachmentDto>? userAttachments = null;
+        SendDocumentDto? dto;
 
         if (Request.HasFormContentType)
         {
-            if (form is null || string.IsNullOrWhiteSpace(form.Payload))
+            var formCollection = await Request.ReadFormAsync(cancellationToken);
+            var payload = formCollection["payload"].FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(payload))
                 return BadRequest(new ApiMessageResponse { Message = "Form field 'payload' is required for multipart requests." });
 
             try
             {
-                dto = JsonSerializer.Deserialize<SendDocumentDto>(form.Payload,
+                dto = JsonSerializer.Deserialize<SendDocumentDto>(payload,
                     new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
             }
             catch (JsonException)
@@ -77,11 +75,25 @@ public class SendingController : ControllerBase
                 return BadRequest(new ApiMessageResponse { Message = "Invalid JSON in form field 'payload'." });
 
             var (parsedAttachments, attachmentError) = await SendingEmailAttachments.ParseAsync(
-                attachments, cancellationToken);
+                formCollection.Files.GetFiles("attachments"), cancellationToken);
             if (attachmentError is not null)
                 return BadRequest(new ApiMessageResponse { Message = attachmentError });
 
             userAttachments = parsedAttachments;
+        }
+        else
+        {
+            try
+            {
+                dto = await JsonSerializer.DeserializeAsync<SendDocumentDto>(
+                    Request.Body,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true },
+                    cancellationToken);
+            }
+            catch (JsonException)
+            {
+                return BadRequest(new ApiMessageResponse { Message = "Invalid JSON request body." });
+            }
         }
 
         if (dto is null)
