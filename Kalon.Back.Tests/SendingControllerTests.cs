@@ -116,7 +116,9 @@ public class SendingControllerTests
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var payload = Assert.IsType<List<MailEditorVariableTag>>(ok.Value);
         Assert.DoesNotContain(payload, t => t.Id == "enterprise_name");
-        Assert.Contains(payload, t => t.Id == "totalDonation");
+        Assert.Contains(payload, t => t.Id == "totalContributions");
+        Assert.Contains(payload, t => t.Id == "prenom");
+        Assert.Contains(payload, t => t.Token == "{{montantDonations}}");
     }
 
     [Fact]

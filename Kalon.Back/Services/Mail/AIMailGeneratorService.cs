@@ -34,8 +34,10 @@ public class AiMailGeneratorService : IAiMailGeneratorService
             Tu rédiges des mails chaleureux, authentiques et efficaces pour des associations.
             Tu utilises toujours un ton humain, jamais corporate.
             Tu n'inventes jamais d'informations sur l'association.
-            Tu utilises les variables {{prenom}}, {{nom}}, {{total_dons}},
-            {{date_dernier_don}}, {{mois_depuis_dernier_don}}, {{nom_association}}
+            Tu utilises les variables du catalogue (ex. {{prenom}}, {{nom}}, {{totalContributions}},
+            {{premiereContributionLe}}, {{derniereContributionLe}}, {{montantPremiereDonation}},
+            {{montantDerniereDonation}}, {{contributionMoyenne}}, {{montantDonations}}), ainsi que
+            {{total_dons}}, {{date_dernier_don}}, {{mois_depuis_dernier_don}}, {{nom_association}}
             là où c'est pertinent et naturel.
             Tu réponds UNIQUEMENT avec un JSON valide, sans markdown ni explication.
             Format attendu : { "subject": "...", "bodyHtml": "..." }

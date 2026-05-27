@@ -60,6 +60,9 @@ public class Contact
     public DateTime? FirstDonationAt { get; set; }
 
     [NotMapped]
+    public decimal? FirstDonationAmount { get; set; }
+
+    [NotMapped]
     public DateTime? LastDonation { get; set; }
 
     [NotMapped]

@@ -174,6 +174,7 @@ public class ContactControllerTests
         Assert.Equal(contact.Id, payload.Id);
         Assert.Equal(0m, payload.TotalDonation);
         Assert.Null(payload.FirstDonationAt);
+        Assert.Null(payload.FirstDonationAmount);
         Assert.Null(payload.LastDonation);
         Assert.Null(payload.LastDonationAmount);
         Assert.Equal(0m, payload.AverageDonationAmount);
@@ -336,6 +337,7 @@ public class ContactControllerTests
         var payload = Assert.IsType<ContactResponse>(ok.Value);
         Assert.Equal(35m, payload.TotalDonation);
         Assert.Equal(olderDonationDate, payload.FirstDonationAt);
+        Assert.Equal(10m, payload.FirstDonationAmount);
         Assert.Equal(latestDonationDate, payload.LastDonation);
         Assert.Equal(25m, payload.LastDonationAmount);
         Assert.Equal(17.5m, payload.AverageDonationAmount);
@@ -387,6 +389,7 @@ public class ContactControllerTests
         var aggregated = Assert.Single(payload);
         Assert.Equal(20m, aggregated.TotalDonation);
         Assert.Equal(DateTime.UtcNow.Date.AddDays(-5), aggregated.FirstDonationAt);
+        Assert.Equal(5m, aggregated.FirstDonationAmount);
         Assert.Equal(2, aggregated.DonationCount);
         Assert.Equal(DateTime.UtcNow.Date.AddDays(-1), aggregated.LastDonation);
         Assert.Equal(15m, aggregated.LastDonationAmount);

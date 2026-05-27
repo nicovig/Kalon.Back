@@ -317,6 +317,11 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
                 UpdatedAt = c.UpdatedAt,
                 TotalDonation = c.Donations.Sum(d => (decimal?)d.Amount) ?? 0m,
                 FirstDonationAt = c.Donations.Min(d => (DateTime?)d.Date),
+                FirstDonationAmount = c.Donations
+                    .OrderBy(d => d.Date)
+                    .ThenBy(d => d.CreatedAt)
+                    .Select(d => (decimal?)d.Amount)
+                    .FirstOrDefault(),
                 LastDonation = c.Donations.Max(d => (DateTime?)d.Date),
                 LastDonationAmount = c.Donations
                     .OrderByDescending(d => d.Date)

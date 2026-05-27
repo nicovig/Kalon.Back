@@ -24,6 +24,7 @@ public class ContactResponse
     public DateTime? UpdatedAt { get; set; }
     public decimal TotalDonation { get; set; }
     public DateTime? FirstDonationAt { get; set; }
+    public decimal? FirstDonationAmount { get; set; }
     public DateTime? LastDonation { get; set; }
     public decimal? LastDonationAmount { get; set; }
     public decimal AverageDonationAmount { get; set; }

@@ -141,6 +141,14 @@ internal static class Cerfa16216DocumentLayout
                 sig.Item().PaddingVertical(4);
             }
 
+            var signatureText = data.SignatureBlock?.Content;
+            if (!string.IsNullOrWhiteSpace(signatureText))
+            {
+                sig.Item().AlignRight().Text(signatureText.Trim())
+                    .FontSize(9).FontColor(Colors.Grey.Darken1);
+                sig.Item().PaddingVertical(4);
+            }
+
             sig.Item().Text(DateTime.Now.ToString("dd MMMM yyyy",
                 new System.Globalization.CultureInfo("fr-FR")))
                 .FontSize(9).FontColor(Colors.Grey.Darken1);

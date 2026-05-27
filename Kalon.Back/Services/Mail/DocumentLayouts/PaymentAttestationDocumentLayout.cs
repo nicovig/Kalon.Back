@@ -64,6 +64,14 @@ internal static class PaymentAttestationDocumentLayout
                 sig.Item().PaddingVertical(4);
             }
 
+            var signatureText = data.SignatureBlock?.Content;
+            if (!string.IsNullOrWhiteSpace(signatureText))
+            {
+                sig.Item().AlignRight().Text(signatureText.Trim())
+                    .FontSize(9).FontColor(Colors.Grey.Darken1);
+                sig.Item().PaddingVertical(4);
+            }
+
             if (includeDate)
             {
                 sig.Item().Text(DateTime.Now.ToString("dd MMMM yyyy",

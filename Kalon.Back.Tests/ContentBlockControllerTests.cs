@@ -87,7 +87,7 @@ public class OrganizationCustomContentControllerTests
         {
             Name = "Intro",
             Kind = "text",
-            Content = "Hello {{firstname}}",
+            Content = "Hello {{prenom}}",
             UsableInEmail = true,
             UsableInReceipt = false
         };
@@ -97,7 +97,7 @@ public class OrganizationCustomContentControllerTests
         var created = Assert.IsType<CreatedAtActionResult>(result);
         var payload = Assert.IsType<ContentBlockResponse>(created.Value);
         Assert.Equal("text", payload.Kind);
-        Assert.Equal("Hello {{firstname}}", payload.Content);
+        Assert.Equal("Hello {{prenom}}", payload.Content);
         Assert.False(payload.UsableInReceipt);
     }
 
@@ -124,6 +124,126 @@ public class OrganizationCustomContentControllerTests
         var result = await controller.CreateContentBlock(request, CancellationToken.None);
 
         Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task CreateSignature_ReturnsCreated_WhenContentOnlyProvided()
+    {
+        using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var userId = Guid.NewGuid();
+        var user = CreateUser(userId, "owner@example.com");
+        var organization = CreateOrganization(Guid.NewGuid(), userId, user);
+        dbContext.Users.Add(user);
+        dbContext.Organizations.Add(organization);
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
+
+        var request = new SignatureContentBlockCreateRequest
+        {
+            Name = "Signature",
+            Content = "Fait le {{prenom}} {{nom}}",
+            UsableInEmail = true,
+            UsableInReceipt = true
+        };
+
+        var result = await controller.CreateSignatureContentBlock(request, CancellationToken.None);
+
+        var created = Assert.IsType<CreatedAtActionResult>(result);
+        var payload = Assert.IsType<ContentBlockResponse>(created.Value);
+        Assert.Equal("signature", payload.Kind);
+        Assert.Equal("Fait le {{prenom}} {{nom}}", payload.Content);
+        Assert.Null(payload.StoredPath);
+    }
+
+    [Fact]
+    public async Task CreateSignature_ReturnsCreated_WhenImageOnlyProvided()
+    {
+        using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var userId = Guid.NewGuid();
+        var user = CreateUser(userId, "owner@example.com");
+        var organization = CreateOrganization(Guid.NewGuid(), userId, user);
+        dbContext.Users.Add(user);
+        dbContext.Organizations.Add(organization);
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
+
+        var request = new SignatureContentBlockCreateRequest
+        {
+            Name = "Signature",
+            StoredPath = "/blocks/signature.png",
+            MimeType = "image/png",
+            UsableInEmail = false,
+            UsableInReceipt = true
+        };
+
+        var result = await controller.CreateSignatureContentBlock(request, CancellationToken.None);
+
+        var created = Assert.IsType<CreatedAtActionResult>(result);
+        var payload = Assert.IsType<ContentBlockResponse>(created.Value);
+        Assert.Equal("signature", payload.Kind);
+        Assert.Equal("/blocks/signature.png", payload.StoredPath);
+        Assert.Equal("image/png", payload.MimeType);
+        Assert.Null(payload.Content);
+        Assert.False(payload.UsableInEmail);
+        Assert.True(payload.UsableInReceipt);
+    }
+
+    [Fact]
+    public async Task CreateSignature_ReturnsBadRequest_WhenNoContentAndNoImageProvided()
+    {
+        using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var userId = Guid.NewGuid();
+        var user = CreateUser(userId, "owner@example.com");
+        var organization = CreateOrganization(Guid.NewGuid(), userId, user);
+        dbContext.Users.Add(user);
+        dbContext.Organizations.Add(organization);
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
+
+        var request = new SignatureContentBlockCreateRequest
+        {
+            Name = "Signature"
+        };
+
+        var result = await controller.CreateSignatureContentBlock(request, CancellationToken.None);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        var apiMessage = Assert.IsType<ApiMessageResponse>(badRequest.Value);
+        Assert.Equal("At least one of Content or StoredPath is required for signature kind.", apiMessage.Message);
+    }
+
+    [Fact]
+    public async Task Create_ReturnsBadRequest_WhenKindSignatureProvided()
+    {
+        using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var userId = Guid.NewGuid();
+        var user = CreateUser(userId, "owner@example.com");
+        var organization = CreateOrganization(Guid.NewGuid(), userId, user);
+        dbContext.Users.Add(user);
+        dbContext.Organizations.Add(organization);
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
+
+        var request = new ContentBlockUpsertRequest
+        {
+            Name = "Signature",
+            Kind = "signature",
+            Content = "Texte"
+        };
+
+        var result = await controller.CreateContentBlock(request, CancellationToken.None);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        var apiMessage = Assert.IsType<ApiMessageResponse>(badRequest.Value);
+        Assert.Equal("Utilisez l'endpoint POST /content-blocks/signature pour créer une signature.", apiMessage.Message);
     }
 
     [Fact]
@@ -170,6 +290,51 @@ public class OrganizationCustomContentControllerTests
         var payload = Assert.IsType<List<ContentBlockResponse>>(ok.Value);
         Assert.Single(payload);
         Assert.Equal("Mine", payload[0].Name);
+    }
+
+    [Fact]
+    public async Task GetContentBlocks_IncludesSignatureBlocks()
+    {
+        using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var userId = Guid.NewGuid();
+        var user = CreateUser(userId, "owner@example.com");
+        var organizationId = Guid.NewGuid();
+        var organization = CreateOrganization(organizationId, userId, user);
+
+        dbContext.Users.Add(user);
+        dbContext.Organizations.Add(organization);
+
+        dbContext.ContentBlocks.AddRange(
+            new ContentBlock
+            {
+                Id = Guid.NewGuid(),
+                OrganizationId = organizationId,
+                Name = "Signature",
+                Kind = "signature",
+                Content = "Nom signé {{prenom}}",
+                CreatedAt = DateTime.UtcNow
+            },
+            new ContentBlock
+            {
+                Id = Guid.NewGuid(),
+                OrganizationId = organizationId,
+                Name = "Intro",
+                Kind = "text",
+                Content = "Hello",
+                CreatedAt = DateTime.UtcNow
+            });
+
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.GetContentBlocks(CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var payload = Assert.IsType<List<ContentBlockResponse>>(ok.Value);
+
+        Assert.Equal(2, payload.Count);
+        Assert.Contains(payload, b => b.Kind == "signature" && b.Name == "Signature");
     }
 
     [Fact]

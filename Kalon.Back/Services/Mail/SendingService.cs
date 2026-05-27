@@ -61,6 +61,7 @@ public class SendingService : ISendingService
         {
             try
             {
+                var resolvedSignatureBlock = ResolveSignatureBlockForContact(signatureBlock, contact, org);
                 var effectiveDocumentType = ResolveEffectiveDocumentTypeForContact(dto.DocumentType, contact);
                 var resolvedCompanionHtml = _resolver.Resolve(dto.BodyHtml, contact, org);
                 var documentTemplate = dto.DocumentBodyHtml ?? dto.BodyHtml;
@@ -74,7 +75,7 @@ public class SendingService : ISendingService
                 if (RequiresGeneratedDocument(effectiveDocumentType))
                 {
                     generatedDoc = await CreateGeneratedDocumentAsync(
-                        effectiveDocumentType, contact, org, signatureBlock, dto);
+                        effectiveDocumentType, contact, org, resolvedSignatureBlock, dto);
                 }
 
                 var attachments = new List<EmailAttachmentDto>();
@@ -86,7 +87,7 @@ public class SendingService : ISendingService
                         Organization = org,
                         ResolvedHtml = resolvedDocumentHtml,
                         DocumentType = effectiveDocumentType,
-                        SignatureBlock = signatureBlock,
+                        SignatureBlock = resolvedSignatureBlock,
                         GeneratedDocument = generatedDoc
                     };
                     attachments.Add(new EmailAttachmentDto
@@ -186,6 +187,7 @@ public class SendingService : ISendingService
 
         foreach (var contact in contacts)
         {
+            var resolvedSignatureBlock = ResolveSignatureBlockForContact(signatureBlock, contact, org);
             var effectiveDocumentType = ResolveEffectiveDocumentTypeForContact(dto.DocumentType, contact);
             var resolvedCompanionHtml = _resolver.Resolve(dto.BodyHtml, contact, org);
             var resolvedSubject = dto.Subject != null
@@ -199,7 +201,7 @@ public class SendingService : ISendingService
             if (RequiresGeneratedDocument(effectiveDocumentType))
             {
                 generatedDoc = await CreateGeneratedDocumentAsync(
-                    effectiveDocumentType, contact, org, signatureBlock, dto);
+                    effectiveDocumentType, contact, org, resolvedSignatureBlock, dto);
                 generatedDoc.Status = GeneratedDocumentStatuses.Generated;
                 result.GeneratedDocumentIds.Add(generatedDoc.Id);
             }
@@ -225,7 +227,7 @@ public class SendingService : ISendingService
                 ResolvedHtml = resolvedCompanionHtml,
                 ResolvedSubject = resolvedSubject,
                 DocumentType = DocumentType.Message,
-                SignatureBlock = signatureBlock,
+                SignatureBlock = resolvedSignatureBlock,
                 GeneratedDocument = generatedDoc
             });
 
@@ -239,7 +241,7 @@ public class SendingService : ISendingService
                 ResolvedHtml = resolvedDocumentHtml,
                 ResolvedSubject = resolvedSubject,
                 DocumentType = effectiveDocumentType,
-                SignatureBlock = signatureBlock,
+                SignatureBlock = resolvedSignatureBlock,
                 GeneratedDocument = generatedDoc
             });
         }
@@ -276,6 +278,36 @@ public class SendingService : ISendingService
     }
 
     // ── helpers privés ────────────────────────────────────────────
+
+    private ContentBlock? ResolveSignatureBlockForContact(
+        ContentBlock? signatureBlock,
+        Contact contact,
+        Organization org)
+    {
+        if (signatureBlock is null)
+            return null;
+
+        if (string.IsNullOrWhiteSpace(signatureBlock.Content))
+            return signatureBlock;
+
+        var resolvedContent = _resolver.Resolve(signatureBlock.Content, contact, org);
+
+        return new ContentBlock
+        {
+            Id = signatureBlock.Id,
+            OrganizationId = signatureBlock.OrganizationId,
+            Organization = org,
+            Name = signatureBlock.Name,
+            Kind = signatureBlock.Kind,
+            Content = resolvedContent,
+            StoredPath = signatureBlock.StoredPath,
+            MimeType = signatureBlock.MimeType,
+            UsableInEmail = signatureBlock.UsableInEmail,
+            UsableInReceipt = signatureBlock.UsableInReceipt,
+            CreatedAt = signatureBlock.CreatedAt,
+            UpdatedAt = signatureBlock.UpdatedAt
+        };
+    }
 
     private async Task<GeneratedDocument> CreateGeneratedDocumentAsync(
         string documentType,

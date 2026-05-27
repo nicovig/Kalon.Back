@@ -13,18 +13,20 @@ public static class MailEditorVariableTagCatalog
     {
         Id = "enterprise_name",
         Label = "Nom de l'entreprise",
-        Token = "{{enterprise_name}}"
+        Token = "{{nom_entreprise}}"
     };
 
     private static readonly IReadOnlyList<MailEditorVariableTag> BaseTags = new[]
     {
         new MailEditorVariableTag { Id = "prenom", Label = "Prénom", Token = "{{prenom}}" },
         new MailEditorVariableTag { Id = "nom", Label = "Nom", Token = "{{nom}}" },
-        new MailEditorVariableTag { Id = "totalDonation", Label = "Total des contributions", Token = "{{totalDonation}}" },
-        new MailEditorVariableTag { Id = "firstDonationAt", Label = "Date première contribution", Token = "{{firstDonationAt}}" },
-        new MailEditorVariableTag { Id = "lastDonation", Label = "Date dernière contribution", Token = "{{lastDonation}}" },
-        new MailEditorVariableTag { Id = "averageDonationAmount", Label = "Moyenne des contributions", Token = "{{averageDonationAmount}}" },
-        new MailEditorVariableTag { Id = "donationCount", Label = "Nombre de contributions", Token = "{{donationCount}}" }
+        new MailEditorVariableTag { Id = "totalContributions", Label = "Total des contributions", Token = "{{totalContributions}}" },
+        new MailEditorVariableTag { Id = "premiereContributionLe", Label = "Date première contribution", Token = "{{premiereContributionLe}}" },
+        new MailEditorVariableTag { Id = "derniereContributionLe", Label = "Date dernière contribution", Token = "{{derniereContributionLe}}" },
+        new MailEditorVariableTag { Id = "montantPremiereDonation", Label = "Montant première contribution", Token = "{{montantPremiereDonation}}" },
+        new MailEditorVariableTag { Id = "montantDerniereDonation", Label = "Montant dernière contribution", Token = "{{montantDerniereDonation}}" },
+        new MailEditorVariableTag { Id = "contributionMoyenne", Label = "Moyenne des contributions", Token = "{{contributionMoyenne}}" },
+        new MailEditorVariableTag { Id = "montantDonations", Label = "Montant total des contributions", Token = "{{montantDonations}}" }
     };
 
     public static IReadOnlyList<MailEditorVariableTag> Get(bool hasCompanyRecipient)

@@ -171,20 +171,24 @@ public class VariableResolverServiceTests
         var contact = MakeContact(c =>
         {
             c.FirstDonationAt = new DateTime(2024, 01, 15);
+            c.FirstDonationAmount = 100m;
             c.LastDonation = new DateTime(2025, 02, 20);
+            c.LastDonationAmount = 200m;
             c.AverageDonationAmount = 42.5m;
             c.DonationCount = 4;
             c.TotalDonation = 170m;
         });
 
-        var template = "{{totalDonation}}|{{firstDonationAt}}|{{lastDonation}}|{{averageDonationAmount}}|{{donationCount}}";
+        var template = "{{totalContributions}}|{{premiereContributionLe}}|{{derniereContributionLe}}|{{contributionMoyenne}}|{{montantDonations}}|{{montantPremiereDonation}}|{{montantDerniereDonation}}|{{nombre_dons}}";
         var result = _resolver.Resolve(template, contact, MakeOrg());
 
         Assert.Contains("170", result);
         Assert.Contains("15/01/2024", result);
         Assert.Contains("20/02/2025", result);
         Assert.Contains("42", result);
-        Assert.Contains("|4", result);
+        Assert.Contains("100", result);
+        Assert.Contains("200", result);
+        Assert.EndsWith("|4", result);
     }
 
     [Fact]
@@ -192,5 +196,6 @@ public class VariableResolverServiceTests
     {
         var tags = _resolver.GetAvailableTags(true);
         Assert.Contains(tags, t => t.Id == "enterprise_name");
+        Assert.Contains(tags, t => t.Id == "totalContributions");
     }
 }

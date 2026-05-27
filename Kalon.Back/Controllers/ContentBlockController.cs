@@ -40,6 +40,11 @@ public class OrganizationCustomContentController(
             return resolved.Error!;
 
         var organizationId = resolved.OrganizationId;
+
+        var requestedKind = request.Kind.Trim().ToLowerInvariant();
+        if (requestedKind == "signature")
+            return BadRequest(new ApiMessageResponse { Message = "Utilisez l'endpoint POST /content-blocks/signature pour créer une signature." });
+
         var validationError = ValidateRequest(request);
         if (validationError is not null)
             return BadRequest(new ApiMessageResponse { Message = validationError });
@@ -51,6 +56,55 @@ public class OrganizationCustomContentController(
             CreatedAt = DateTime.UtcNow
         };
         ApplyRequest(block, request);
+
+        dbContext.ContentBlocks.Add(block);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        var result = await ProjectAsync(block.Id, organizationId, cancellationToken);
+        return CreatedAtAction(nameof(GetContentBlockById), new { id = block.Id }, result);
+    }
+
+    [HttpPost("content-blocks/signature")]
+    [ProducesResponseType(typeof(ContentBlockResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> CreateSignatureContentBlock(
+        [FromBody] SignatureContentBlockCreateRequest request,
+        CancellationToken cancellationToken)
+    {
+        var userId = ResolveUserIdFromJwt();
+        if (userId is null)
+            return BadRequest(new ApiMessageResponse { Message = "userId is required." });
+
+        var access = await userOrganizationAccess.ResolveAsync(userId.Value, cancellationToken);
+        var resolved = access.ToActionResult();
+        if (!resolved.Success)
+            return resolved.Error!;
+
+        var organizationId = resolved.OrganizationId;
+
+        var upsert = new ContentBlockUpsertRequest
+        {
+            Name = request.Name,
+            Kind = "signature",
+            Content = request.Content,
+            StoredPath = request.StoredPath,
+            MimeType = request.MimeType,
+            UsableInEmail = request.UsableInEmail,
+            UsableInReceipt = request.UsableInReceipt
+        };
+
+        var validationError = ValidateRequest(upsert);
+        if (validationError is not null)
+            return BadRequest(new ApiMessageResponse { Message = validationError });
+
+        var block = new ContentBlock
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = organizationId,
+            CreatedAt = DateTime.UtcNow
+        };
+        ApplyRequest(block, upsert);
 
         dbContext.ContentBlocks.Add(block);
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -318,10 +372,30 @@ public class OrganizationCustomContentController(
         var kind = request.Kind.Trim().ToLowerInvariant();
         if (kind == "text" && string.IsNullOrWhiteSpace(request.Content))
             return "Content is required for text kind.";
-        if ((kind == "image" || kind == "signature") && string.IsNullOrWhiteSpace(request.StoredPath))
-            return "StoredPath is required for image and signature kinds.";
-        if ((kind == "image" || kind == "signature") && string.IsNullOrWhiteSpace(request.MimeType))
-            return "MimeType is required for image and signature kinds.";
+
+        var hasContent = !string.IsNullOrWhiteSpace(request.Content);
+        var hasStoredPath = !string.IsNullOrWhiteSpace(request.StoredPath);
+        var hasMimeType = !string.IsNullOrWhiteSpace(request.MimeType);
+
+        if (kind == "image")
+        {
+            if (!hasStoredPath)
+                return "StoredPath is required for image kind.";
+            if (!hasMimeType)
+                return "MimeType is required for image kind.";
+        }
+
+        if (kind == "signature")
+        {
+            if (!hasContent && !hasStoredPath)
+                return "At least one of Content or StoredPath is required for signature kind.";
+
+            if (hasMimeType && !hasStoredPath)
+                return "StoredPath is required when MimeType is provided for signature kind.";
+
+            if (hasStoredPath && !hasMimeType)
+                return "MimeType is required when StoredPath is provided for signature kind.";
+        }
 
         return null;
     }

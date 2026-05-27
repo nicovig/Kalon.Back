@@ -52,16 +52,34 @@ public class VariableResolverService : IVariableResolverService
                 contact.TotalDonation.ToString("C", new System.Globalization.CultureInfo("fr-FR")))
             .Replace("{{totalDonation}}",
                 contact.TotalDonation.ToString("C", new System.Globalization.CultureInfo("fr-FR")))
+            .Replace("{{totalContributions}}",
+                contact.TotalDonation.ToString("C", new System.Globalization.CultureInfo("fr-FR")))
+            .Replace("{{montantDonations}}",
+                contact.TotalDonation.ToString("C", new System.Globalization.CultureInfo("fr-FR")))
             .Replace("{{nombre_dons}}", contact.DonationCount.ToString())
             .Replace("{{donationCount}}", contact.DonationCount.ToString())
             .Replace("{{firstDonationAt}}",
+                contact.FirstDonationAt?.ToString("dd/MM/yyyy") ?? "jamais")
+            .Replace("{{premiereContributionLe}}",
                 contact.FirstDonationAt?.ToString("dd/MM/yyyy") ?? "jamais")
             .Replace("{{date_dernier_don}}",
                 contact.LastDonation?.ToString("dd/MM/yyyy") ?? "jamais")
             .Replace("{{lastDonation}}",
                 contact.LastDonation?.ToString("dd/MM/yyyy") ?? "jamais")
+            .Replace("{{derniereContributionLe}}",
+                contact.LastDonation?.ToString("dd/MM/yyyy") ?? "jamais")
             .Replace("{{averageDonationAmount}}",
                 contact.AverageDonationAmount.ToString("C", new System.Globalization.CultureInfo("fr-FR")))
+            .Replace("{{contributionMoyenne}}",
+                contact.AverageDonationAmount.ToString("C", new System.Globalization.CultureInfo("fr-FR")))
+            .Replace("{{montantPremiereDonation}}",
+                contact.FirstDonationAmount.HasValue
+                    ? contact.FirstDonationAmount.Value.ToString("C", new System.Globalization.CultureInfo("fr-FR"))
+                    : "")
+            .Replace("{{montantDerniereDonation}}",
+                contact.LastDonationAmount.HasValue
+                    ? contact.LastDonationAmount.Value.ToString("C", new System.Globalization.CultureInfo("fr-FR"))
+                    : "")
             .Replace("{{mois_depuis_dernier_don}}",
                 contact.LastDonation.HasValue
                     ? CalculateMonthsSince(contact.LastDonation.Value).ToString()
