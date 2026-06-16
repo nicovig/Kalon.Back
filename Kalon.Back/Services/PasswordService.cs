@@ -13,6 +13,7 @@ namespace Kalon.Back.Services
 
     public interface IPasswordService
     {
+        string GenerateSalt();
         string HashPassword(string password, string salt);
         bool VerifyPassword(string password, string passwordHash, string salt);
     }
@@ -24,6 +25,11 @@ namespace Kalon.Back.Services
         public PasswordService(IOptions<PasswordOptions> options)
         {
             _options = options.Value;
+        }
+
+        public string GenerateSalt()
+        {
+            return Convert.ToBase64String(RandomNumberGenerator.GetBytes(16));
         }
 
         public string HashPassword(string password, string salt)

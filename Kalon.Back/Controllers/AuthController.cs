@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Kalon.Back.Data;
 using Kalon.Back.DTOs;
 using Kalon.Back.Services;
@@ -13,6 +14,8 @@ public class AuthController: ControllerBase
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly IPasswordService _passwordService;
+    private readonly IUserPasswordService _userPasswordService;
+    private readonly IPasswordResetService _passwordResetService;
     private readonly MeranClient _meranClient;
     private readonly IConfiguration _configuration;
     private readonly IJwtTokenService _jwtTokenService;
@@ -20,12 +23,16 @@ public class AuthController: ControllerBase
     public AuthController(
         ApplicationDbContext dbContext,
         IPasswordService passwordService,
+        IUserPasswordService userPasswordService,
+        IPasswordResetService passwordResetService,
         MeranClient meranClient,
         IConfiguration configuration,
         IJwtTokenService jwtTokenService)
     {
         _dbContext = dbContext;
         _passwordService = passwordService;
+        _userPasswordService = userPasswordService;
+        _passwordResetService = passwordResetService;
         _meranClient = meranClient;
         _configuration = configuration;
         _jwtTokenService = jwtTokenService;
@@ -134,5 +141,117 @@ public class AuthController: ControllerBase
             });
         }
 
+    }
+
+    [HttpPost("change-password")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ChangePassword(
+        [FromBody] ChangePasswordRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var userId = ResolveUserIdFromJwt();
+        if (userId is null)
+            return BadRequest(new ApiMessageResponse { Message = "userId is required." });
+
+        if (request is null)
+            return BadRequest(new ApiMessageResponse { Message = "Request body is required." });
+
+        if (string.IsNullOrWhiteSpace(request.CurrentPassword)
+            || string.IsNullOrWhiteSpace(request.NewPassword))
+        {
+            return BadRequest(new ApiMessageResponse
+            {
+                Message = "Current password and new password are required."
+            });
+        }
+
+        var result = await _userPasswordService.ChangePasswordAsync(
+            userId.Value,
+            request.CurrentPassword,
+            request.NewPassword,
+            cancellationToken);
+
+        return result.Status switch
+        {
+            PasswordChangeStatus.Success => NoContent(),
+            PasswordChangeStatus.InvalidCurrentPassword => Unauthorized(new ApiMessageResponse
+            {
+                Message = "Mot de passe actuel incorrect."
+            }),
+            PasswordChangeStatus.UserNotFound => NotFound(new ApiMessageResponse
+            {
+                Message = "Utilisateur introuvable."
+            }),
+            _ => BadRequest(new ApiMessageResponse { Message = "Unable to change password." })
+        };
+    }
+
+    [HttpPost("forgot-password")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ForgotPassword(
+        [FromBody] ForgotPasswordRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (request is null)
+            return BadRequest(new ApiMessageResponse { Message = "Request body is required." });
+
+        if (string.IsNullOrWhiteSpace(request.Email))
+            return BadRequest(new ApiMessageResponse { Message = "Email is required." });
+
+        await _passwordResetService.RequestResetAsync(request.Email, cancellationToken);
+        return NoContent();
+    }
+
+    [HttpPost("reset-password")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ApiMessageResponse), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ResetPassword(
+        [FromBody] ResetPasswordRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (request is null)
+            return BadRequest(new ApiMessageResponse { Message = "Request body is required." });
+
+        if (string.IsNullOrWhiteSpace(request.Token)
+            || string.IsNullOrWhiteSpace(request.NewPassword))
+        {
+            return BadRequest(new ApiMessageResponse
+            {
+                Message = "Token and new password are required."
+            });
+        }
+
+        var result = await _passwordResetService.ResetPasswordAsync(
+            request.Token,
+            request.NewPassword,
+            cancellationToken);
+
+        return result.Status switch
+        {
+            PasswordResetStatus.Success => NoContent(),
+            PasswordResetStatus.InvalidOrExpiredToken => BadRequest(new ApiMessageResponse
+            {
+                Message = "Lien de réinitialisation invalide ou expiré."
+            }),
+            _ => BadRequest(new ApiMessageResponse { Message = "Unable to reset password." })
+        };
+    }
+
+    private Guid? ResolveUserIdFromJwt()
+    {
+        var principal = HttpContext?.User;
+        if (principal is null)
+            return null;
+
+        var claimValue = principal.FindFirstValue(ClaimTypes.NameIdentifier)
+                         ?? principal.FindFirstValue("sub");
+        return Guid.TryParse(claimValue, out var parsed) ? parsed : null;
     }
 }

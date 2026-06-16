@@ -6,8 +6,11 @@ using Kalon.Back.Configuration;
 using Kalon.Back.Controllers;
 using Kalon.Back.Data;
 using Kalon.Back.DTOs;
+using Kalon.Back.Dtos;
 using Kalon.Back.Models;
 using Kalon.Back.Services;
+using Kalon.Back.Services.Mail;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -27,9 +30,24 @@ public class AuthControllerTests
             _verifyResult = verifyResult;
         }
 
+        public string GenerateSalt() => "fake-salt";
+
         public string HashPassword(string password, string salt) => "hash";
 
         public bool VerifyPassword(string password, string passwordHash, string salt) => _verifyResult;
+    }
+
+    private static PasswordService CreateRealPasswordService() =>
+        new(Options.Create(new PasswordOptions
+        {
+            Pepper = "viser_lindependance_financiere_002",
+            Iterations = 120000,
+            HashSize = 32
+        }));
+
+    private sealed class NoOpMailService : IMailService
+    {
+        public Task SendAsync(MailMessageDto message) => Task.CompletedTask;
     }
 
     private sealed class FixedTokenProvider : IMeranTokenProvider
@@ -89,6 +107,62 @@ public class AuthControllerTests
             ExpirationMinutes = 60
         }));
 
+    private static void SetAuthenticatedUser(ControllerBase controller, Guid userId)
+    {
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(
+                [
+                    new Claim("sub", userId.ToString())
+                ], "TestAuth"))
+            }
+        };
+    }
+
+    private static PasswordResetService CreatePasswordResetService(
+        ApplicationDbContext dbContext,
+        IPasswordService passwordService,
+        IMailService? mailService = null)
+    {
+        return new PasswordResetService(
+            dbContext,
+            passwordService,
+            mailService ?? new NoOpMailService(),
+            Options.Create(new PasswordResetOptions
+            {
+                FrontendResetUrl = "http://localhost:4300/reset-password",
+                TokenExpirationMinutes = 60
+            }));
+    }
+
+    private static AuthController CreateAuthController(
+        ApplicationDbContext dbContext,
+        IPasswordService passwordService,
+        MeranClient meranClient,
+        IUserPasswordService? userPasswordService = null,
+        IPasswordResetService? passwordResetService = null)
+    {
+        return new AuthController(
+            dbContext,
+            passwordService,
+            userPasswordService ?? new UserPasswordService(dbContext, passwordService),
+            passwordResetService ?? CreatePasswordResetService(dbContext, passwordService),
+            meranClient,
+            CreateConfiguration(),
+            CreateJwtTokenService());
+    }
+
+    private static MeranClient CreateMeranClient(HttpStatusCode statusCode, string json)
+    {
+        var httpClient = new HttpClient(new StaticJsonHandler(statusCode, json));
+        return new MeranClient(
+            httpClient,
+            Options.Create(new MeranOptions { BaseUrl = "http://meran.local" }),
+            new FixedTokenProvider());
+    }
+
     private static Organization CreateOrganization(Guid id, Guid userId, User user)
     {
         return new Organization
@@ -126,12 +200,10 @@ public class AuthControllerTests
         dbContext.Organizations.Add(CreateOrganization(Guid.NewGuid(), userId, user));
         await dbContext.SaveChangesAsync();
 
-        using var httpClient = new HttpClient(new StaticJsonHandler(HttpStatusCode.OK, "{\"isActive\":true,\"plan\":\"basic\"}"));
-        var meranClient = new MeranClient(
-            httpClient,
-            Options.Create(new MeranOptions { BaseUrl = "http://meran.local" }),
-            new FixedTokenProvider());
-        var controller = new AuthController(dbContext, new FakePasswordService(true), meranClient, CreateConfiguration(), CreateJwtTokenService());
+        var controller = CreateAuthController(
+            dbContext,
+            new FakePasswordService(true),
+            CreateMeranClient(HttpStatusCode.OK, "{\"isActive\":true,\"plan\":\"basic\"}"));
 
         var result = await controller.Login(new LoginRequest { Email = "john@doe.com", Password = "pwd" }, CancellationToken.None);
 
@@ -167,12 +239,10 @@ public class AuthControllerTests
         dbContext.Organizations.Add(CreateOrganization(Guid.NewGuid(), userId, user));
         await dbContext.SaveChangesAsync();
 
-        using var httpClient = new HttpClient(new StaticJsonHandler(HttpStatusCode.OK, "{\"isActive\":true}"));
-        var meranClient = new MeranClient(
-            httpClient,
-            Options.Create(new MeranOptions { BaseUrl = "http://meran.local" }),
-            new FixedTokenProvider());
-        var controller = new AuthController(dbContext, new FakePasswordService(false), meranClient, CreateConfiguration(), CreateJwtTokenService());
+        var controller = CreateAuthController(
+            dbContext,
+            new FakePasswordService(false),
+            CreateMeranClient(HttpStatusCode.OK, "{\"isActive\":true}"));
 
         var result = await controller.Login(new LoginRequest { Email = "john@doe.com", Password = "bad" }, CancellationToken.None);
 
@@ -199,17 +269,216 @@ public class AuthControllerTests
         dbContext.Organizations.Add(CreateOrganization(Guid.NewGuid(), userId, user));
         await dbContext.SaveChangesAsync();
 
-        using var httpClient = new HttpClient(new StaticJsonHandler(HttpStatusCode.Unauthorized, "{\"error\":\"forbidden\"}"));
-        var meranClient = new MeranClient(
-            httpClient,
-            Options.Create(new MeranOptions { BaseUrl = "http://meran.local" }),
-            new FixedTokenProvider());
-        var controller = new AuthController(dbContext, new FakePasswordService(true), meranClient, CreateConfiguration(), CreateJwtTokenService());
+        var controller = CreateAuthController(
+            dbContext,
+            new FakePasswordService(true),
+            CreateMeranClient(HttpStatusCode.Unauthorized, "{\"error\":\"forbidden\"}"));
 
         var result = await controller.Login(new LoginRequest { Email = "john@doe.com", Password = "pwd" }, CancellationToken.None);
 
         var objectResult = Assert.IsType<ObjectResult>(result);
         Assert.Equal(502, objectResult.StatusCode);
+    }
+
+    [Fact]
+    public async Task ChangePassword_ReturnsNoContent_WhenCurrentPasswordValid()
+    {
+        using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var passwordService = CreateRealPasswordService();
+        var salt = passwordService.GenerateSalt();
+        var userId = Guid.NewGuid();
+        var user = new User
+        {
+            Id = userId,
+            MeranId = Guid.NewGuid(),
+            Firstname = "John",
+            Lastname = "Doe",
+            Email = "john@doe.com",
+            AssociationName = "Asso",
+            Salt = salt,
+            PasswordHash = passwordService.HashPassword("OldPassword123!", salt)
+        };
+        dbContext.Users.Add(user);
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateAuthController(
+            dbContext,
+            passwordService,
+            CreateMeranClient(HttpStatusCode.OK, "{\"isActive\":true}"));
+        SetAuthenticatedUser(controller, userId);
+
+        var result = await controller.ChangePassword(
+            new ChangePasswordRequest
+            {
+                CurrentPassword = "OldPassword123!",
+                NewPassword = "NewPassword456!"
+            },
+            CancellationToken.None);
+
+        Assert.IsType<NoContentResult>(result);
+
+        var updated = await dbContext.Users.SingleAsync(u => u.Id == userId);
+        Assert.True(passwordService.VerifyPassword("NewPassword456!", updated.PasswordHash, updated.Salt));
+    }
+
+    [Fact]
+    public async Task ChangePassword_ReturnsUnauthorized_WhenCurrentPasswordInvalid()
+    {
+        using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var passwordService = CreateRealPasswordService();
+        var salt = passwordService.GenerateSalt();
+        var userId = Guid.NewGuid();
+        var user = new User
+        {
+            Id = userId,
+            MeranId = Guid.NewGuid(),
+            Firstname = "John",
+            Lastname = "Doe",
+            Email = "john@doe.com",
+            AssociationName = "Asso",
+            Salt = salt,
+            PasswordHash = passwordService.HashPassword("OldPassword123!", salt)
+        };
+        dbContext.Users.Add(user);
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateAuthController(
+            dbContext,
+            passwordService,
+            CreateMeranClient(HttpStatusCode.OK, "{\"isActive\":true}"));
+        SetAuthenticatedUser(controller, userId);
+
+        var result = await controller.ChangePassword(
+            new ChangePasswordRequest
+            {
+                CurrentPassword = "WrongPassword!",
+                NewPassword = "NewPassword456!"
+            },
+            CancellationToken.None);
+
+        Assert.IsType<UnauthorizedObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task ChangePassword_ReturnsBadRequest_WhenPasswordsMissing()
+    {
+        using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var passwordService = CreateRealPasswordService();
+        var controller = CreateAuthController(
+            dbContext,
+            passwordService,
+            CreateMeranClient(HttpStatusCode.OK, "{\"isActive\":true}"));
+        SetAuthenticatedUser(controller, Guid.NewGuid());
+
+        var result = await controller.ChangePassword(
+            new ChangePasswordRequest
+            {
+                CurrentPassword = "",
+                NewPassword = "NewPassword456!"
+            },
+            CancellationToken.None);
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task ForgotPassword_ReturnsNoContent_EvenWhenUserMissing()
+    {
+        using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var controller = CreateAuthController(
+            dbContext,
+            CreateRealPasswordService(),
+            CreateMeranClient(HttpStatusCode.OK, "{\"isActive\":true}"));
+
+        var result = await controller.ForgotPassword(
+            new ForgotPasswordRequest { Email = "missing@doe.com" },
+            CancellationToken.None);
+
+        Assert.IsType<NoContentResult>(result);
+    }
+
+    [Fact]
+    public async Task ForgotPassword_ReturnsBadRequest_WhenEmailMissing()
+    {
+        using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var controller = CreateAuthController(
+            dbContext,
+            CreateRealPasswordService(),
+            CreateMeranClient(HttpStatusCode.OK, "{\"isActive\":true}"));
+
+        var result = await controller.ForgotPassword(
+            new ForgotPasswordRequest { Email = "" },
+            CancellationToken.None);
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task ResetPassword_ReturnsNoContent_WhenTokenValid()
+    {
+        using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var passwordService = CreateRealPasswordService();
+        var salt = passwordService.GenerateSalt();
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            MeranId = Guid.NewGuid(),
+            Firstname = "John",
+            Lastname = "Doe",
+            Email = "john@doe.com",
+            AssociationName = "Asso",
+            Salt = salt,
+            PasswordHash = passwordService.HashPassword("OldPassword123!", salt)
+        };
+        dbContext.Users.Add(user);
+
+        var rawToken = PasswordResetService.GenerateResetToken();
+        dbContext.PasswordResetTokens.Add(new PasswordResetToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            TokenHash = PasswordResetService.HashToken(rawToken),
+            CreatedAt = DateTime.UtcNow,
+            ExpiresAt = DateTime.UtcNow.AddHours(1)
+        });
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateAuthController(
+            dbContext,
+            passwordService,
+            CreateMeranClient(HttpStatusCode.OK, "{\"isActive\":true}"));
+
+        var result = await controller.ResetPassword(
+            new ResetPasswordRequest
+            {
+                Token = rawToken,
+                NewPassword = "NewPassword456!"
+            },
+            CancellationToken.None);
+
+        Assert.IsType<NoContentResult>(result);
+        var updated = await dbContext.Users.SingleAsync(u => u.Id == user.Id);
+        Assert.True(passwordService.VerifyPassword("NewPassword456!", updated.PasswordHash, updated.Salt));
+    }
+
+    [Fact]
+    public async Task ResetPassword_ReturnsBadRequest_WhenTokenInvalid()
+    {
+        using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var controller = CreateAuthController(
+            dbContext,
+            CreateRealPasswordService(),
+            CreateMeranClient(HttpStatusCode.OK, "{\"isActive\":true}"));
+
+        var result = await controller.ResetPassword(
+            new ResetPasswordRequest
+            {
+                Token = "invalid-token",
+                NewPassword = "NewPassword456!"
+            },
+            CancellationToken.None);
+
+        Assert.IsType<BadRequestObjectResult>(result);
     }
 }
 

@@ -52,6 +52,20 @@ public class PasswordServiceTests
     }
 
     [Fact]
+    public void GenerateSalt_ReturnsUniqueBase64Values()
+    {
+        var service = CreateService("viser_lindependance_financiere_002");
+
+        var salt1 = service.GenerateSalt();
+        var salt2 = service.GenerateSalt();
+
+        Assert.NotEqual(salt1, salt2);
+        Assert.Equal(24, salt1.Length);
+        var saltBytes = Convert.FromBase64String(salt1);
+        Assert.Equal(16, saltBytes.Length);
+    }
+
+    [Fact]
     public void VerifyPassword_Bcrypt_DetectsHashFormat()
     {
         var service = CreateService("irrelevant_pepper");

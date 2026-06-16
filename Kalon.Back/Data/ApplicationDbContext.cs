@@ -19,6 +19,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<ContentBlock> ContentBlocks { get; set; }
     public DbSet<ContactStatusSettings> ContactStatusSettings { get; set; }
     public DbSet<QuotaUsage> QuotaUsages { get; set; }
+    public DbSet<PasswordResetToken> PasswordResetTokens { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -219,6 +220,21 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasIndex(cb => new { cb.OrganizationId, cb.Kind });
+        });
+
+        // ── PasswordResetToken ────────────────────────────────────
+        modelBuilder.Entity<PasswordResetToken>(entity =>
+        {
+            entity.ToTable("password_reset_tokens");
+
+            entity.HasOne(t => t.User)
+                .WithMany()
+                .HasForeignKey(t => t.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(t => t.TokenHash).IsUnique();
+            entity.HasIndex(t => new { t.UserId, t.UsedAt });
+            entity.HasIndex(t => t.ExpiresAt);
         });
 
         // ── QuotaUsages ──────────────────────────────────────────
