@@ -78,7 +78,6 @@ public class DonationControllerTests
         {
             Id = id,
             OrganizationId = organizationId,
-            Kind = ContactKinds.Donor,
             Firstname = firstname,
             Lastname = lastname,
             Email = $"{firstname.ToLowerInvariant()}@example.com",

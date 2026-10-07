@@ -13,8 +13,11 @@ namespace Kalon.Back.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize(Roles = "organization_master")]
-public class ContactController(ApplicationDbContext dbContext, IUserOrganizationAccessService userOrganizationAccess, IPlanService planService)
-    : ControllerBase
+public class ContactController(
+    ApplicationDbContext dbContext,
+    IUserOrganizationAccessService userOrganizationAccess,
+    IPlanService planService,
+    ITagService tagService) : ControllerBase
 {
     private const int MAX_BULK_CREATE_ITEMS = 500;
 
@@ -65,7 +68,10 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
         };
         ApplyRequest(contact, request);
 
-        
+        var tagsError = await ApplyTagsAsync(contact, organizationId, request.TagIds, cancellationToken);
+        if (tagsError is not null)
+            return BadRequest(new ApiMessageResponse { Message = tagsError });
+
         dbContext.Contacts.Add(contact);
         await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -133,6 +139,9 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
                 CreatedAt = DateTime.UtcNow
             };
             ApplyRequest(contact, item);
+            var tagsError = await ApplyTagsAsync(contact, organizationId, item.TagIds, cancellationToken);
+            if (tagsError is not null)
+                return BadRequest(new ApiMessageResponse { Message = tagsError });
             createdIds.Add(contact.Id);
             dbContext.Contacts.Add(contact);
         }
@@ -224,12 +233,17 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
         var contact = await dbContext.Contacts
             .Include(c => c.Address)
             .Include(c => c.Enterprise)
+            .Include(c => c.Tags)
             .FirstOrDefaultAsync(c => c.OrganizationId == organizationId && c.Id == id, cancellationToken);
 
         if (contact is null)
             return NotFound(new ApiMessageResponse { Message = "Contact not found." });
 
         ApplyRequest(contact, request);
+        var tagsError = await ApplyTagsAsync(contact, organizationId, request.TagIds, cancellationToken);
+        if (tagsError is not null)
+            return BadRequest(new ApiMessageResponse { Message = tagsError });
+
         contact.UpdatedAt = DateTime.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -242,16 +256,14 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
 
     private static string? ValidateRequest(ContactCreateRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.Firstname) || string.IsNullOrWhiteSpace(request.Lastname))
-            return "Firstname and lastname are required.";
-        if (!ContactKinds.IsValid(request.Kind))
-            return "Invalid contact kind.";
+        if (string.IsNullOrWhiteSpace(request.Email) && string.IsNullOrWhiteSpace(request.Phone))
+            return "Email or phone number is required";
         return null;
     }
 
     private static void ApplyRequest(Contact contact, ContactCreateRequest request)
     {
-        contact.Kind = request.Kind.Trim();
+        contact.IsEnterprise = request.IsEnterprise;
         contact.Firstname = request.Firstname.Trim();
         contact.Lastname = request.Lastname.Trim();
         contact.Email = request.Email?.Trim();
@@ -262,8 +274,39 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
         contact.Notes = request.Notes?.Trim();
         contact.Department = request.Department?.Trim();
         contact.PreferredFrequencySendingReceipt = request.PreferredFrequencySendingReceipt?.Trim();
+        contact.LastMembershipDate = request.LastMembershipDate;
+        contact.MembershipEndDate = request.MembershipEndDate;
+        contact.IsFamilyMembership = request.IsFamilyMembership;
         contact.Address = request.Address;
         contact.Enterprise = request.Enterprise;
+    }
+
+    private async Task<string?> ApplyTagsAsync(
+        Contact contact,
+        Guid organizationId,
+        List<Guid>? tagIds,
+        CancellationToken cancellationToken)
+    {
+        if (tagIds is null || tagIds.Count == 0)
+        {
+            contact.Tags.Clear();
+            return null;
+        }
+
+        var distinctIds = tagIds.Distinct().ToList();
+        var tags = await tagService.ResolveTagsForOrganizationAsync(
+            organizationId,
+            distinctIds,
+            cancellationToken);
+
+        if (tags.Count != distinctIds.Count)
+            return "One or more tags were not found for this organization.";
+
+        contact.Tags.Clear();
+        foreach (var tag in tags)
+            contact.Tags.Add(tag);
+
+        return null;
     }
 
     private IQueryable<ContactResponse> ProjectContacts()
@@ -274,7 +317,7 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
             {
                 Id = c.Id,
                 OrganizationId = c.OrganizationId,
-                Kind = c.Kind,
+                IsEnterprise = c.IsEnterprise,
                 IsOut = c.IsOut,
                 Firstname = c.Firstname,
                 Lastname = c.Lastname,
@@ -286,6 +329,9 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
                 Notes = c.Notes,
                 Department = c.Department,
                 PreferredFrequencySendingReceipt = c.PreferredFrequencySendingReceipt,
+                LastMembershipDate = c.LastMembershipDate,
+                MembershipEndDate = c.MembershipEndDate,
+                IsFamilyMembership = c.IsFamilyMembership,
                 Address = c.Address == null
                     ? null
                     : new ContactAddress
@@ -313,6 +359,18 @@ public class ContactController(ApplicationDbContext dbContext, IUserOrganization
                         ContactEmail = c.Enterprise.ContactEmail,
                         ContactPhone = c.Enterprise.ContactPhone
                     },
+                Tags = c.Tags
+                    .OrderBy(t => t.Name)
+                    .Select(t => new TagResponse
+                    {
+                        Id = t.Id,
+                        OrganizationId = t.OrganizationId,
+                        Name = t.Name,
+                        Color = t.Color,
+                        CreatedAt = t.CreatedAt,
+                        UpdatedAt = t.UpdatedAt
+                    })
+                    .ToList(),
                 CreatedAt = c.CreatedAt,
                 UpdatedAt = c.UpdatedAt,
                 TotalDonation = c.Donations.Sum(d => (decimal?)d.Amount) ?? 0m,

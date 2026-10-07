@@ -21,7 +21,8 @@ public class ContactControllerTests
             new UserOrganizationAccessService(dbContext),
             new PlanService(
                 new HttpContextAccessor(),
-                Options.Create(new PlanOptions())));
+                Options.Create(new PlanOptions())),
+            new TagService(dbContext));
 
     private static void SetAuthenticatedUser(ControllerBase controller, Guid userId)
     {
@@ -83,7 +84,6 @@ public class ContactControllerTests
         {
             Id = id,
             OrganizationId = organizationId,
-            Kind = ContactKinds.Donor,
             Firstname = firstname,
             Lastname = "Lastname",
             Email = $"{firstname.ToLowerInvariant()}@example.com",
@@ -118,7 +118,6 @@ public class ContactControllerTests
         SetAuthenticatedUser(controller, userId);
         var request = new ContactCreateRequest
         {
-            Kind = ContactKinds.Donor,
             Firstname = "New",
             Lastname = "Contact",
             Email = "new.contact@example.com"
@@ -129,7 +128,79 @@ public class ContactControllerTests
         var created = Assert.IsType<CreatedAtActionResult>(result);
         var payload = Assert.IsType<ContactResponse>(created.Value);
         Assert.Equal("New", payload.Firstname);
-        Assert.Equal(ContactKinds.Donor, payload.Kind);
+        Assert.False(payload.IsEnterprise);
+        Assert.False(payload.IsFamilyMembership);
+        Assert.Null(payload.LastMembershipDate);
+        Assert.Null(payload.MembershipEndDate);
+    }
+
+    [Fact]
+    public async Task Create_PersistsMembershipFields()
+    {
+        using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var userId = Guid.NewGuid();
+        var user = CreateUser(userId, "owner@example.com");
+        var organization = CreateOrganization(Guid.NewGuid(), userId, user);
+        dbContext.Users.Add(user);
+        dbContext.Organizations.Add(organization);
+        await dbContext.SaveChangesAsync();
+
+        var lastMembership = DateTime.UtcNow.Date.AddMonths(-1);
+        var membershipEnd = DateTime.UtcNow.Date.AddMonths(11);
+
+        var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.Create(new ContactCreateRequest
+        {
+            Firstname = "Member",
+            Lastname = "Family",
+            Email = "member@example.com",
+            LastMembershipDate = lastMembership,
+            MembershipEndDate = membershipEnd,
+            IsFamilyMembership = true
+        }, CancellationToken.None);
+
+        var created = Assert.IsType<CreatedAtActionResult>(result);
+        var payload = Assert.IsType<ContactResponse>(created.Value);
+        Assert.Equal(lastMembership, payload.LastMembershipDate);
+        Assert.Equal(membershipEnd, payload.MembershipEndDate);
+        Assert.True(payload.IsFamilyMembership);
+    }
+
+    [Fact]
+    public async Task Update_PersistsMembershipFields()
+    {
+        using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var userId = Guid.NewGuid();
+        var user = CreateUser(userId, "owner@example.com");
+        var organizationId = Guid.NewGuid();
+        var organization = CreateOrganization(organizationId, userId, user);
+        var contact = CreateContact(Guid.NewGuid(), organizationId, "Before", DateTime.UtcNow);
+        dbContext.Users.Add(user);
+        dbContext.Organizations.Add(organization);
+        dbContext.Contacts.Add(contact);
+        await dbContext.SaveChangesAsync();
+
+        var lastMembership = DateTime.UtcNow.Date;
+        var membershipEnd = DateTime.UtcNow.Date.AddYears(1);
+
+        var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.Update(contact.Id, new ContactCreateRequest
+        {
+            Firstname = "After",
+            Lastname = "Updated",
+            Email = "after@example.com",
+            LastMembershipDate = lastMembership,
+            MembershipEndDate = membershipEnd,
+            IsFamilyMembership = true
+        }, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var payload = Assert.IsType<ContactResponse>(ok.Value);
+        Assert.Equal(lastMembership, payload.LastMembershipDate);
+        Assert.Equal(membershipEnd, payload.MembershipEndDate);
+        Assert.True(payload.IsFamilyMembership);
     }
 
     [Fact]
@@ -199,7 +270,6 @@ public class ContactControllerTests
         SetAuthenticatedUser(controller, userId);
         var request = new ContactCreateRequest
         {
-            Kind = ContactKinds.Member,
             Firstname = "After",
             Lastname = "Updated",
             Email = "after@example.com"
@@ -210,11 +280,11 @@ public class ContactControllerTests
         var ok = Assert.IsType<OkObjectResult>(result);
         var payload = Assert.IsType<ContactResponse>(ok.Value);
         Assert.Equal("After", payload.Firstname);
-        Assert.Equal(ContactKinds.Member, payload.Kind);
+        Assert.False(payload.IsEnterprise);
     }
 
     [Fact]
-    public async Task Update_ReturnsBadRequest_WhenKindInvalid()
+    public async Task Update_ReturnsBadRequest_WhenEmailAndPhoneMissing()
     {
         using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
         var userId = Guid.NewGuid();
@@ -231,7 +301,6 @@ public class ContactControllerTests
         SetAuthenticatedUser(controller, userId);
         var request = new ContactCreateRequest
         {
-            Kind = "invalid_kind",
             Firstname = "After",
             Lastname = "Updated"
         };
@@ -415,15 +484,15 @@ public class ContactControllerTests
             [
                 new ContactCreateRequest
                 {
-                    Kind = ContactKinds.Donor,
                     Firstname = "A",
-                    Lastname = "One"
+                    Lastname = "One",
+                    Email = "a@example.com"
                 },
                 new ContactCreateRequest
                 {
-                    Kind = ContactKinds.Member,
                     Firstname = "B",
-                    Lastname = "Two"
+                    Lastname = "Two",
+                    Email = "b@example.com"
                 }
             ]
         }, CancellationToken.None);
@@ -453,7 +522,6 @@ public class ContactControllerTests
             [
                 new ContactCreateRequest
                 {
-                    Kind = "invalid_kind",
                     Firstname = "A",
                     Lastname = "One"
                 }
@@ -463,4 +531,111 @@ public class ContactControllerTests
         Assert.IsType<BadRequestObjectResult>(result);
     }
 
+    [Fact]
+    public async Task Create_AssignsTags_WhenTagIdsProvided()
+    {
+        using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var userId = Guid.NewGuid();
+        var user = CreateUser(userId, "owner@example.com");
+        var organization = CreateOrganization(Guid.NewGuid(), userId, user);
+        var tag = new Tag
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = organization.Id,
+            Name = "VIP",
+            Color = "#FF0000",
+            CreatedAt = DateTime.UtcNow
+        };
+        dbContext.Users.Add(user);
+        dbContext.Organizations.Add(organization);
+        dbContext.Tags.Add(tag);
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.Create(new ContactCreateRequest
+        {
+            Firstname = "Tagged",
+            Lastname = "Contact",
+            Email = "tagged@example.com",
+            TagIds = [tag.Id]
+        }, CancellationToken.None);
+
+        var created = Assert.IsType<CreatedAtActionResult>(result);
+        var payload = Assert.IsType<ContactResponse>(created.Value);
+        var assigned = Assert.Single(payload.Tags);
+        Assert.Equal(tag.Id, assigned.Id);
+        Assert.Equal("VIP", assigned.Name);
+    }
+
+    [Fact]
+    public async Task Create_ReturnsBadRequest_WhenTagIdsUnknown()
+    {
+        using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var userId = Guid.NewGuid();
+        var user = CreateUser(userId, "owner@example.com");
+        var organization = CreateOrganization(Guid.NewGuid(), userId, user);
+        dbContext.Users.Add(user);
+        dbContext.Organizations.Add(organization);
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.Create(new ContactCreateRequest
+        {
+            Firstname = "Tagged",
+            Lastname = "Contact",
+            Email = "tagged@example.com",
+            TagIds = [Guid.NewGuid()]
+        }, CancellationToken.None);
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task Update_ReplacesTags_WhenTagIdsProvided()
+    {
+        using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var userId = Guid.NewGuid();
+        var user = CreateUser(userId, "owner@example.com");
+        var organizationId = Guid.NewGuid();
+        var organization = CreateOrganization(organizationId, userId, user);
+        var tagOld = new Tag
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = organizationId,
+            Name = "Old",
+            CreatedAt = DateTime.UtcNow
+        };
+        var tagNew = new Tag
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = organizationId,
+            Name = "New",
+            CreatedAt = DateTime.UtcNow
+        };
+        var contact = CreateContact(Guid.NewGuid(), organizationId, "Before", DateTime.UtcNow);
+        contact.Tags.Add(tagOld);
+        dbContext.Users.Add(user);
+        dbContext.Organizations.Add(organization);
+        dbContext.Tags.AddRange(tagOld, tagNew);
+        dbContext.Contacts.Add(contact);
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.Update(contact.Id, new ContactCreateRequest
+        {
+            Firstname = "After",
+            Lastname = "Updated",
+            Email = "after@example.com",
+            TagIds = [tagNew.Id]
+        }, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var payload = Assert.IsType<ContactResponse>(ok.Value);
+        var assigned = Assert.Single(payload.Tags);
+        Assert.Equal(tagNew.Id, assigned.Id);
+        Assert.Equal("New", assigned.Name);
+    }
 }

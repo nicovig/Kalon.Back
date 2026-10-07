@@ -86,7 +86,6 @@ public class NotificationControllerTests
         {
             Id = Guid.NewGuid(),
             OrganizationId = organizationId,
-            Kind = ContactKinds.Donor,
             Firstname = "Remind",
             Lastname = "Contact",
             Email = "r@x.com",
@@ -97,7 +96,6 @@ public class NotificationControllerTests
         {
             Id = Guid.NewGuid(),
             OrganizationId = organizationId,
-            Kind = ContactKinds.Donor,
             Firstname = "Monthly",
             Lastname = "Due",
             Email = "m@x.com",
@@ -108,7 +106,6 @@ public class NotificationControllerTests
         {
             Id = Guid.NewGuid(),
             OrganizationId = organizationId,
-            Kind = ContactKinds.Donor,
             Firstname = "Instant",
             Lastname = "Due",
             Email = "i@x.com",
@@ -119,7 +116,6 @@ public class NotificationControllerTests
         {
             Id = Guid.NewGuid(),
             OrganizationId = organizationId,
-            Kind = ContactKinds.Donor,
             Firstname = "Ignored",
             Lastname = "Out",
             Email = "o@x.com",
@@ -228,7 +224,6 @@ public class NotificationControllerTests
         {
             Id = Guid.NewGuid(),
             OrganizationId = organizationId,
-            Kind = ContactKinds.Donor,
             Firstname = "John",
             Lastname = "Doe",
             Email = "john@doe.com",

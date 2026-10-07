@@ -446,14 +446,11 @@ public class SendingService : ISendingService
     {
         if (requestedDocumentType != DocumentType.TaxReceipt)
             return requestedDocumentType;
-        return contact.Kind == ContactKinds.Company
-            ? DocumentType.Cerfa16216
-            : DocumentType.Cerfa11580;
+        return contact.IsEnterprise ? DocumentType.Cerfa16216 : DocumentType.Cerfa11580;
     }
 
     private static string ContactDisplayName(Contact contact) =>
-        contact.Kind == ContactKinds.Company
-            && contact.Enterprise?.Name is not null
+        contact.IsEnterprise && contact.Enterprise?.Name is not null
             ? contact.Enterprise.Name
             : $"{contact.Firstname} {contact.Lastname}".Trim();
 

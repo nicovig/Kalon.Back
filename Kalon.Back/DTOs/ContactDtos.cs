@@ -6,7 +6,7 @@ public class ContactResponse
 {
     public Guid Id { get; set; }
     public Guid OrganizationId { get; set; }
-    public string Kind { get; set; } = string.Empty;
+    public bool IsEnterprise { get; set; }
     public bool IsOut { get; set; }
     public string Firstname { get; set; } = string.Empty;
     public string Lastname { get; set; } = string.Empty;
@@ -18,8 +18,12 @@ public class ContactResponse
     public string? Notes { get; set; }
     public string? Department { get; set; }
     public string? PreferredFrequencySendingReceipt { get; set; }
+    public DateTime? LastMembershipDate { get; set; }
+    public DateTime? MembershipEndDate { get; set; }
+    public bool IsFamilyMembership { get; set; }
     public ContactAddress? Address { get; set; }
     public ContactEnterprise? Enterprise { get; set; }
+    public List<TagResponse> Tags { get; set; } = [];
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
     public decimal TotalDonation { get; set; }
@@ -33,7 +37,7 @@ public class ContactResponse
 
 public class ContactCreateRequest
 {
-    public string Kind { get; set; } = string.Empty;
+    public bool IsEnterprise { get; set; }
     public string Firstname { get; set; } = string.Empty;
     public string Lastname { get; set; } = string.Empty;
     public string? Email { get; set; }
@@ -44,8 +48,12 @@ public class ContactCreateRequest
     public string? Notes { get; set; }
     public string? Department { get; set; }
     public string? PreferredFrequencySendingReceipt { get; set; }
+    public DateTime? LastMembershipDate { get; set; }
+    public DateTime? MembershipEndDate { get; set; }
+    public bool IsFamilyMembership { get; set; }
     public ContactAddress? Address { get; set; }
     public ContactEnterprise? Enterprise { get; set; }
+    public List<Guid>? TagIds { get; set; }
 }
 
 public class ContactBulkCreateRequest

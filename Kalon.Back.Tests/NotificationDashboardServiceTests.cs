@@ -61,7 +61,6 @@ public class NotificationDashboardServiceTests
         {
             Id = Guid.NewGuid(),
             OrganizationId = organizationId,
-            Kind = ContactKinds.Donor,
             Firstname = "Remind",
             Lastname = "Contact",
             Email = "r@x.com",
@@ -72,7 +71,6 @@ public class NotificationDashboardServiceTests
         {
             Id = Guid.NewGuid(),
             OrganizationId = organizationId,
-            Kind = ContactKinds.Donor,
             Firstname = "Monthly",
             Lastname = "Due",
             Email = "m@x.com",
@@ -165,7 +163,6 @@ public class NotificationDashboardServiceTests
         {
             Id = Guid.NewGuid(),
             OrganizationId = organizationId,
-            Kind = ContactKinds.Donor,
             Firstname = "John",
             Lastname = "Doe",
             Email = "john@doe.com",
@@ -240,7 +237,6 @@ public class NotificationDashboardServiceTests
         {
             Id = Guid.NewGuid(),
             OrganizationId = organizationId,
-            Kind = ContactKinds.Donor,
             Firstname = "Alice",
             Lastname = "Martin",
             Email = "alice@doe.com",
@@ -299,7 +295,6 @@ public class NotificationDashboardServiceTests
         {
             Id = Guid.NewGuid(),
             OrganizationId = organizationId,
-            Kind = ContactKinds.Donor,
             Firstname = "Jane",
             Lastname = "Doe",
             Email = "jane@doe.com",
@@ -361,7 +356,6 @@ public class NotificationDashboardServiceTests
         {
             Id = Guid.NewGuid(),
             OrganizationId = organizationId,
-            Kind = ContactKinds.Donor,
             Firstname = "Paul",
             Lastname = "Martin",
             Email = "paul@doe.com",

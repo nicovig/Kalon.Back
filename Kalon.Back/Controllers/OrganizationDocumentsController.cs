@@ -183,7 +183,6 @@ public class OrganizationDocumentsController(
         {
             Contact = new Contact
             {
-                Kind = ContactKinds.Donor,
                 Firstname = sourceDocument.SnapshotContactDisplayName,
                 Lastname = string.Empty
             },

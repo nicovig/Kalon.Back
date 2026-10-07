@@ -20,6 +20,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<ContactStatusSettings> ContactStatusSettings { get; set; }
     public DbSet<QuotaUsage> QuotaUsages { get; set; }
     public DbSet<PasswordResetToken> PasswordResetTokens { get; set; }
+    public DbSet<Tag> Tags { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -107,7 +108,6 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             });
 
             entity.HasIndex(c => c.OrganizationId);
-            entity.HasIndex(c => new { c.OrganizationId, c.Kind });
             entity.HasIndex(c => new { c.OrganizationId, c.Department });
         });
 
@@ -235,6 +235,41 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.HasIndex(t => t.TokenHash).IsUnique();
             entity.HasIndex(t => new { t.UserId, t.UsedAt });
             entity.HasIndex(t => t.ExpiresAt);
+        });
+
+        // ── Tag ───────────────────────────────────────────────────
+        modelBuilder.Entity<Tag>(entity =>
+        {
+            entity.ToTable("tags");
+
+            entity.HasOne(t => t.Organization)
+                .WithMany(o => o.Tags)
+                .HasForeignKey(t => t.OrganizationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(t => new { t.OrganizationId, t.Name }).IsUnique();
+            entity.HasIndex(t => t.OrganizationId);
+
+            entity.HasMany(t => t.Contacts)
+                .WithMany(c => c.Tags)
+                .UsingEntity<Dictionary<string, object>>(
+                    "contact_tags",
+                    right => right
+                        .HasOne<Contact>()
+                        .WithMany()
+                        .HasForeignKey("ContactId")
+                        .OnDelete(DeleteBehavior.Cascade),
+                    left => left
+                        .HasOne<Tag>()
+                        .WithMany()
+                        .HasForeignKey("TagId")
+                        .OnDelete(DeleteBehavior.Cascade),
+                    join =>
+                    {
+                        join.ToTable("contact_tags");
+                        join.HasKey("ContactId", "TagId");
+                        join.HasIndex("TagId");
+                    });
         });
 
         // ── QuotaUsages ──────────────────────────────────────────

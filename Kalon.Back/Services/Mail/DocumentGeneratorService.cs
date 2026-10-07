@@ -177,8 +177,7 @@ public class DocumentGeneratorService : IDocumentGeneratorService
     }
 
     private static string DisplayName(Contact contact) =>
-        contact.Kind == ContactKinds.Company
-            && contact.Enterprise?.Name is not null
+        contact.IsEnterprise && contact.Enterprise?.Name is not null
             ? contact.Enterprise.Name
             : $"{contact.Firstname} {contact.Lastname}".Trim();
 

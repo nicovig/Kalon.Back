@@ -180,7 +180,6 @@ public class OrganizationDocumentsControllerTests
         {
             Id = contactId,
             OrganizationId = organizationId,
-            Kind = ContactKinds.Donor,
             Firstname = "John",
             Lastname = "Doe",
             Email = "john@doe.com",
@@ -194,7 +193,6 @@ public class OrganizationDocumentsControllerTests
         {
             Id = Guid.NewGuid(),
             OrganizationId = otherOrganizationId,
-            Kind = ContactKinds.Donor,
             Firstname = "Other",
             Lastname = "Contact",
             Email = "other@contact.com",
@@ -258,7 +256,6 @@ public class OrganizationDocumentsControllerTests
         {
             Id = Guid.NewGuid(),
             OrganizationId = organizationId,
-            Kind = ContactKinds.Donor,
             Firstname = "Jane",
             Lastname = "Doe",
             Email = "jane@doe.com",
@@ -303,7 +300,6 @@ public class OrganizationDocumentsControllerTests
         {
             Id = Guid.NewGuid(),
             OrganizationId = organizationId,
-            Kind = ContactKinds.Donor,
             Firstname = "John",
             Lastname = "Doe",
             Email = "john@doe.com",

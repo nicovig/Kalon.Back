@@ -1,4 +1,4 @@
-ï»¿using Kalon.Back.Models;
+using Kalon.Back.Models;
 using Kalon.Back.Services.Mail;
 
 namespace Kalon.Back.Tests;
@@ -12,7 +12,6 @@ public class VariableResolverServiceTests
         var contact = new Contact
         {
             Id = Guid.NewGuid(),
-            Kind = ContactKinds.Donor,
             Firstname = "Marie",
             Lastname = "Dupont",
             Email = "marie.dupont@example.com",
@@ -64,10 +63,10 @@ public class VariableResolverServiceTests
     [Fact]
     public void Resolve_TotalDons_FormatsAsCurrency()
     {
-        var template = "Vous avez donnÃ© {{total_dons}} au total.";
+        var template = "Vous avez donné {{total_dons}} au total.";
         var result = _resolver.Resolve(template, MakeContact(), MakeOrg());
         Assert.Contains("320", result);
-        Assert.Contains("â‚¬", result);
+        Assert.Contains("€", result);
     }
 
     [Fact]
@@ -88,9 +87,9 @@ public class VariableResolverServiceTests
             c.JobTitle = null;
             c.LastDonation = null;
         });
-        var template = "Tel: {{telephone}} - MÃ©tier: {{metier}} - Dernier don: {{date_dernier_don}}";
+        var template = "Tel: {{telephone}} - Métier: {{metier}} - Dernier don: {{date_dernier_don}}";
         var result = _resolver.Resolve(template, contact, MakeOrg());
-        Assert.Equal("Tel:  - MÃ©tier:  - Dernier don: jamais", result);
+        Assert.Equal("Tel:  - Métier:  - Dernier don: jamais", result);
     }
 
     [Fact]
@@ -98,7 +97,7 @@ public class VariableResolverServiceTests
     {
         var contact = MakeContact(c =>
         {
-            c.Kind = ContactKinds.Company;
+            c.IsEnterprise = true;
             c.Enterprise = new ContactEnterprise
             {
                 Name = "Alpha SAS",
@@ -144,9 +143,9 @@ public class VariableResolverServiceTests
     [Fact]
     public void Resolve_DecodesHtmlEntities()
     {
-        var template = "Nous n&#39;avons pas reÃ§u votre cotisation";
+        var template = "Nous n&#39;avons pas reçu votre cotisation";
         var result = _resolver.Resolve(template, MakeContact(), MakeOrg());
-        Assert.Equal("Nous n'avons pas reÃ§u votre cotisation", result);
+        Assert.Equal("Nous n'avons pas reçu votre cotisation", result);
     }
 
     [Fact]

@@ -101,7 +101,6 @@ public class SendingServiceTests
         {
             Id = Guid.NewGuid(),
             OrganizationId = organizationId,
-            Kind = ContactKinds.Donor,
             Firstname = "Marie",
             Lastname = "Dupont",
             Email = "marie@demo.org",
@@ -130,7 +129,6 @@ public class SendingServiceTests
         {
             Id = contactId,
             OrganizationId = organizationId,
-            Kind = ContactKinds.Donor,
             Firstname = "Marie",
             Lastname = "Dupont",
             Email = "marie@demo.org",
@@ -175,7 +173,6 @@ public class SendingServiceTests
         {
             Id = contactId,
             OrganizationId = organizationId,
-            Kind = ContactKinds.Donor,
             Firstname = "Marie",
             Lastname = "Dupont",
             Email = "marie@demo.org",
@@ -231,7 +228,6 @@ public class SendingServiceTests
         {
             Id = contactId,
             OrganizationId = organizationId,
-            Kind = ContactKinds.Donor,
             Firstname = "Marie",
             Lastname = "Dupont",
             Email = "marie@demo.org",
@@ -273,7 +269,6 @@ public class SendingServiceTests
         {
             Id = contactId,
             OrganizationId = organizationId,
-            Kind = ContactKinds.Donor,
             Firstname = "Marie",
             Lastname = "Dupont",
             Email = "marie@demo.org",
@@ -314,7 +309,7 @@ public class SendingServiceTests
         {
             Id = Guid.NewGuid(),
             OrganizationId = organizationId,
-            Kind = ContactKinds.Company,
+            IsEnterprise = true,
             Firstname = "",
             Lastname = "",
             Email = "compta@alpha.fr",
@@ -344,7 +339,6 @@ public class SendingServiceTests
         {
             Id = Guid.NewGuid(),
             OrganizationId = organizationId,
-            Kind = ContactKinds.Donor,
             Firstname = "Marie",
             Lastname = "Dupont",
             Email = "marie@demo.org",
@@ -354,7 +348,7 @@ public class SendingServiceTests
         {
             Id = Guid.NewGuid(),
             OrganizationId = organizationId,
-            Kind = ContactKinds.Company,
+            IsEnterprise = true,
             Firstname = "",
             Lastname = "",
             Email = "compta@alpha.fr",
@@ -387,7 +381,6 @@ public class SendingServiceTests
         {
             Id = Guid.NewGuid(),
             OrganizationId = organizationId,
-            Kind = ContactKinds.Donor,
             Firstname = "Marie",
             Lastname = "Dupont",
             Email = "marie@demo.org",
@@ -419,7 +412,6 @@ public class SendingServiceTests
         {
             Id = Guid.NewGuid(),
             OrganizationId = organizationId,
-            Kind = ContactKinds.Donor,
             Firstname = "Marie",
             Lastname = "Dupont",
             Email = "marie@demo.org",
@@ -463,7 +455,6 @@ public class SendingServiceTests
         {
             Id = Guid.NewGuid(),
             OrganizationId = organizationId,
-            Kind = ContactKinds.Donor,
             Firstname = "Marie",
             Lastname = "Dupont",
             Email = "marie@demo.org",
@@ -500,7 +491,6 @@ public class SendingServiceTests
         {
             Id = Guid.NewGuid(),
             OrganizationId = organizationId,
-            Kind = ContactKinds.Donor,
             Firstname = "Marie",
             Lastname = "Dupont",
             Email = "marie@demo.org",
@@ -528,7 +518,6 @@ public class SendingServiceTests
         {
             Id = Guid.NewGuid(),
             OrganizationId = organizationId,
-            Kind = ContactKinds.Donor,
             Firstname = "Marie",
             Lastname = "Dupont",
             Email = "marie@demo.org",
@@ -538,7 +527,7 @@ public class SendingServiceTests
         {
             Id = Guid.NewGuid(),
             OrganizationId = organizationId,
-            Kind = ContactKinds.Company,
+            IsEnterprise = true,
             Firstname = "",
             Lastname = "",
             Email = "compta@alpha.fr",

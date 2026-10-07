@@ -73,6 +73,7 @@ public class Organization
     public ICollection<MailLog> MailLogs { get; set; } = new List<MailLog>();
     public ICollection<GeneratedDocument> GeneratedDocuments { get; set; } = new List<GeneratedDocument>();
     public ICollection<ContentBlock> ContentBlocks { get; set; } = new List<ContentBlock>();
+    public ICollection<Tag> Tags { get; set; } = new List<Tag>();
 }
 
 public enum ReceiptFrequency

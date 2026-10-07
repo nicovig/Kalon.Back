@@ -11,7 +11,6 @@ public class DocumentGeneratorServiceTests
         {
             Contact = new Contact
             {
-                Kind = ContactKinds.Donor,
                 Firstname = "Jane",
                 Lastname = "Doe"
             },

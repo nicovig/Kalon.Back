@@ -58,7 +58,6 @@ public class DonationServiceTests
             {
                 Id = contactId,
                 OrganizationId = organizationId,
-                Kind = ContactKinds.Donor,
                 Firstname = "A",
                 Lastname = "B",
                 Email = "a@b.com",
@@ -68,7 +67,6 @@ public class DonationServiceTests
             {
                 Id = otherContactId,
                 OrganizationId = organizationId,
-                Kind = ContactKinds.Donor,
                 Firstname = "C",
                 Lastname = "D",
                 Email = "c@d.com",

@@ -1,4 +1,3 @@
-using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Kalon.Back.Models;
@@ -12,7 +11,7 @@ public class Contact
     public Guid OrganizationId { get; set; }
     public Organization Organization { get; set; }
 
-    public string Kind { get; set; }
+    public bool IsEnterprise { get; set; }
 
     // true si le contact est décédé - exclu de tous les envois et calculs
     // les autres statuts (new, to_remind, inactive, active) sont calculés dynamiquement
@@ -39,6 +38,12 @@ public class Contact
     // préférence d'envoi des reçus fiscaux - surcharge le défaut de l'organisation
     // "instantly" | "monthly" | "quarterly" | "semesterly" | "yearly"
     public string? PreferredFrequencySendingReceipt { get; set; }
+
+    public DateTime? LastMembershipDate { get; set; }
+
+    public DateTime? MembershipEndDate { get; set; }
+
+    public bool IsFamilyMembership { get; set; }
 
     // ── adresse (owned entity - stockée dans la table contacts) ───
     public ContactAddress? Address { get; set; }
@@ -76,6 +81,7 @@ public class Contact
 
     // ── navigations ───────────────────────────────────────
     public ICollection<Donation> Donations { get; set; } = new List<Donation>();
+    public ICollection<Tag> Tags { get; set; } = new List<Tag>();
 }
 
 // ContactAddress.cs
@@ -116,42 +122,4 @@ public class ContactEnterprise
     public string? ContactLastname { get; set; }
     public string? ContactEmail { get; set; }
     public string? ContactPhone { get; set; }
-}
-
-public static class SupportKinds
-{
-    public const string Patronage = "patronage";
-    public const string Sponsoring = "sponsoring";
-    public const string Donation = "donation";
-    public const string Other = "other";
-
-    public static readonly IReadOnlyList<string> All = new[]
-    {
-        Patronage,
-        Sponsoring,
-        Donation,
-        Other
-    };
-
-    public static bool IsValid(string? value) =>
-        value is not null && All.Contains(value);
-}
-
-public static class ContactKinds
-{
-    public const string Donor = "donor";
-    public const string Company = "company";
-    public const string Member = "member";
-    public const string Helper = "helper";
-
-    public static readonly IReadOnlyList<string> All = new[]
-    {
-        Donor,
-        Company,
-        Member,
-        Helper
-    };
-
-    public static bool IsValid(string? value) =>
-        value is not null && All.Contains(value);
 }
