@@ -21,6 +21,9 @@ public class ContactResponse
     public DateTime? LastMembershipDate { get; set; }
     public DateTime? MembershipEndDate { get; set; }
     public bool IsFamilyMembership { get; set; }
+    public Guid? MainContactId { get; set; }
+    public ContactMainSummary? MainContact { get; set; }
+    public List<ContactLinkedSummary> LinkedContacts { get; set; } = [];
     public ContactAddress? Address { get; set; }
     public ContactEnterprise? Enterprise { get; set; }
     public List<TagResponse> Tags { get; set; } = [];
@@ -51,9 +54,26 @@ public class ContactCreateRequest
     public DateTime? LastMembershipDate { get; set; }
     public DateTime? MembershipEndDate { get; set; }
     public bool IsFamilyMembership { get; set; }
+    public Guid? MainContactId { get; set; }
     public ContactAddress? Address { get; set; }
     public ContactEnterprise? Enterprise { get; set; }
     public List<Guid>? TagIds { get; set; }
+}
+
+public class ContactMainSummary
+{
+    public Guid Id { get; set; }
+    public string Firstname { get; set; } = string.Empty;
+    public string Lastname { get; set; } = string.Empty;
+    public string? Email { get; set; }
+}
+
+public class ContactLinkedSummary
+{
+    public Guid Id { get; set; }
+    public string Firstname { get; set; } = string.Empty;
+    public string Lastname { get; set; } = string.Empty;
+    public string? Email { get; set; }
 }
 
 public class ContactBulkCreateRequest

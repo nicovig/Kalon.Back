@@ -72,6 +72,14 @@ public class ContactController(
         if (tagsError is not null)
             return BadRequest(new ApiMessageResponse { Message = tagsError });
 
+        var mainContactError = await ApplyMainContactAsync(
+            contact,
+            organizationId,
+            request.MainContactId,
+            cancellationToken);
+        if (mainContactError is not null)
+            return BadRequest(new ApiMessageResponse { Message = mainContactError });
+
         dbContext.Contacts.Add(contact);
         await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -142,6 +150,13 @@ public class ContactController(
             var tagsError = await ApplyTagsAsync(contact, organizationId, item.TagIds, cancellationToken);
             if (tagsError is not null)
                 return BadRequest(new ApiMessageResponse { Message = tagsError });
+            var mainContactError = await ApplyMainContactAsync(
+                contact,
+                organizationId,
+                item.MainContactId,
+                cancellationToken);
+            if (mainContactError is not null)
+                return BadRequest(new ApiMessageResponse { Message = mainContactError });
             createdIds.Add(contact.Id);
             dbContext.Contacts.Add(contact);
         }
@@ -244,6 +259,14 @@ public class ContactController(
         if (tagsError is not null)
             return BadRequest(new ApiMessageResponse { Message = tagsError });
 
+        var mainContactError = await ApplyMainContactAsync(
+            contact,
+            organizationId,
+            request.MainContactId,
+            cancellationToken);
+        if (mainContactError is not null)
+            return BadRequest(new ApiMessageResponse { Message = mainContactError });
+
         contact.UpdatedAt = DateTime.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -279,6 +302,44 @@ public class ContactController(
         contact.IsFamilyMembership = request.IsFamilyMembership;
         contact.Address = request.Address;
         contact.Enterprise = request.Enterprise;
+    }
+
+    private async Task<string?> ApplyMainContactAsync(
+        Contact contact,
+        Guid organizationId,
+        Guid? mainContactId,
+        CancellationToken cancellationToken)
+    {
+        if (mainContactId is null)
+        {
+            contact.MainContactId = null;
+            return null;
+        }
+
+        if (mainContactId == contact.Id)
+            return "A contact cannot be linked to itself.";
+
+        var organization = await dbContext.Organizations
+            .AsNoTracking()
+            .FirstOrDefaultAsync(o => o.Id == organizationId, cancellationToken);
+
+        if (organization is null)
+            return "Organization not found.";
+
+        if (!ContactLinkingModes.IsEnabled(organization.ContactLinkingMode))
+            return "Contact linking is disabled for this organization.";
+
+        var mainContactExists = await dbContext.Contacts.AnyAsync(
+            c => c.Id == mainContactId.Value
+                 && c.OrganizationId == organizationId
+                 && c.MainContactId == null,
+            cancellationToken);
+
+        if (!mainContactExists)
+            return "Main contact was not found or is not a primary contact.";
+
+        contact.MainContactId = mainContactId;
+        return null;
     }
 
     private async Task<string?> ApplyTagsAsync(
@@ -332,6 +393,27 @@ public class ContactController(
                 LastMembershipDate = c.LastMembershipDate,
                 MembershipEndDate = c.MembershipEndDate,
                 IsFamilyMembership = c.IsFamilyMembership,
+                MainContactId = c.MainContactId,
+                MainContact = c.MainContact == null
+                    ? null
+                    : new ContactMainSummary
+                    {
+                        Id = c.MainContact.Id,
+                        Firstname = c.MainContact.Firstname,
+                        Lastname = c.MainContact.Lastname,
+                        Email = c.MainContact.Email
+                    },
+                LinkedContacts = c.LinkedContacts
+                    .OrderBy(lc => lc.Lastname)
+                    .ThenBy(lc => lc.Firstname)
+                    .Select(lc => new ContactLinkedSummary
+                    {
+                        Id = lc.Id,
+                        Firstname = lc.Firstname,
+                        Lastname = lc.Lastname,
+                        Email = lc.Email
+                    })
+                    .ToList(),
                 Address = c.Address == null
                     ? null
                     : new ContactAddress

@@ -45,6 +45,12 @@ public class Contact
 
     public bool IsFamilyMembership { get; set; }
 
+    public Guid? MainContactId { get; set; }
+
+    public Contact? MainContact { get; set; }
+
+    public ICollection<Contact> LinkedContacts { get; set; } = new List<Contact>();
+
     // ── adresse (owned entity - stockée dans la table contacts) ───
     public ContactAddress? Address { get; set; }
 

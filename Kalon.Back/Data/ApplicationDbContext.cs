@@ -107,7 +107,13 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 enterprise.Property(e => e.ContactPhone).HasColumnName("enterprise_contact_phone");
             });
 
+            entity.HasOne(c => c.MainContact)
+                .WithMany(c => c.LinkedContacts)
+                .HasForeignKey(c => c.MainContactId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             entity.HasIndex(c => c.OrganizationId);
+            entity.HasIndex(c => c.MainContactId);
             entity.HasIndex(c => new { c.OrganizationId, c.Department });
         });
 

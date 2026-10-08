@@ -53,6 +53,10 @@ public class OrganizationController : ControllerBase
             && !FiscalStatus.IsValid(organization.FiscalStatus))
             return BadRequest(new ApiMessageResponse { Message = "Statut fiscal invalide." });
 
+        if (organization.ContactLinkingMode != null
+            && !ContactLinkingModes.IsValid(organization.ContactLinkingMode))
+            return BadRequest(new ApiMessageResponse { Message = "Mode de liaison des contacts invalide." });
+
         org.Name = organization.Name;
         org.Street = organization.Street;
         org.PostalCode = organization.PostalCode;
@@ -73,7 +77,10 @@ public class OrganizationController : ControllerBase
         org.AudienceDescription = organization.AudienceDescription;
         if (organization.SendingPreferences is not null)
             org.SendingPreferences = [.. organization.SendingPreferences];
-        
+        if (organization.ContactLinkingMode is not null)
+            org.ContactLinkingMode = organization.ContactLinkingMode;
+        org.ContactLinkingNote = organization.ContactLinkingNote;
+
         await _db.SaveChangesAsync();
         return Ok(ToResponseDto(org));
     }
@@ -144,6 +151,8 @@ public class OrganizationController : ControllerBase
             ActivitySector = org.ActivitySector,
             AudienceDescription = org.AudienceDescription,
             SendingPreferences = [.. org.SendingPreferences],
+            ContactLinkingMode = org.ContactLinkingMode,
+            ContactLinkingNote = org.ContactLinkingNote,
             Logo = org.Logo is null
                 ? null
                 : new OrganizationLogoResponseDto

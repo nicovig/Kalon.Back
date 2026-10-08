@@ -30,6 +30,8 @@ public class OrganizationUpdateRequestDto
     public string? ActivitySector { get; set; }
     public string? AudienceDescription { get; set; }
     public List<string>? SendingPreferences { get; set; }
+    public string? ContactLinkingMode { get; set; }
+    public string? ContactLinkingNote { get; set; }
 }
 
 public class OrganizationStatusSettingsUpsertRequestDto
@@ -62,6 +64,8 @@ public class OrganizationResponseDto
     public string? ActivitySector { get; set; }
     public string? AudienceDescription { get; set; }
     public List<string> SendingPreferences { get; set; } = [];
+    public string ContactLinkingMode { get; set; } = ContactLinkingModes.None;
+    public string? ContactLinkingNote { get; set; }
     public OrganizationLogoResponseDto? Logo { get; set; }
     public ContactStatusSettingsResponseDto? ContactStatusSettings { get; set; }
 }

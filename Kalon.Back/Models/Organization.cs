@@ -67,6 +67,10 @@ public class Organization
 
     public List<string> SendingPreferences { get; set; } = ["message", "tax_receipt", "payment_attestation", "membership_certificate"];
 
+    public string ContactLinkingMode { get; set; } = ContactLinkingModes.None;
+
+    public string? ContactLinkingNote { get; set; }
+
     // navigation collections
     public ICollection<Contact> Contacts { get; set; } = new List<Contact>();
     public ICollection<EmailTemplate> EmailTemplates { get; set; } = new List<EmailTemplate>();
@@ -100,4 +104,26 @@ public static class FiscalStatus
 
     public static bool IsValid(string? value) =>
         value is not null && All.Contains(value);
+}
+
+public static class ContactLinkingModes
+{
+    public const string None = "none";
+    public const string SameId = "same_id";
+    public const string SameAddress = "same_address";
+    public const string Manual = "manual";
+
+    public static readonly IReadOnlyList<string> All =
+    [
+        None,
+        SameId,
+        SameAddress,
+        Manual
+    ];
+
+    public static bool IsValid(string? value) =>
+        value is not null && All.Contains(value);
+
+    public static bool IsEnabled(string? value) =>
+        IsValid(value) && value != None;
 }
