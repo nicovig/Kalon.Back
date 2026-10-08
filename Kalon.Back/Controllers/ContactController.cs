@@ -279,8 +279,8 @@ public class ContactController(
 
     private static string? ValidateRequest(ContactCreateRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.Email) && string.IsNullOrWhiteSpace(request.Phone))
-            return "Email or phone number is required";
+        if (string.IsNullOrWhiteSpace(request.Firstname) && string.IsNullOrWhiteSpace(request.Lastname))
+            return "Firstname and lastname are required";
         return null;
     }
 
