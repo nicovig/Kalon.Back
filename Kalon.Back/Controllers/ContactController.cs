@@ -279,16 +279,23 @@ public class ContactController(
 
     private static string? ValidateRequest(ContactCreateRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.Firstname) && string.IsNullOrWhiteSpace(request.Lastname))
-            return "Firstname and lastname are required";
+        if (request.IsEnterprise)
+        {
+            if (request.Enterprise is null || string.IsNullOrWhiteSpace(request.Enterprise.Name))
+                return "Enterprise name is required for enterprise contacts.";
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Firstname) || string.IsNullOrWhiteSpace(request.Lastname))
+            return "Firstname and lastname are required.";
         return null;
     }
 
     private static void ApplyRequest(Contact contact, ContactCreateRequest request)
     {
         contact.IsEnterprise = request.IsEnterprise;
-        contact.Firstname = request.Firstname.Trim();
-        contact.Lastname = request.Lastname.Trim();
+        contact.Firstname = request.Firstname?.Trim() ?? string.Empty;
+        contact.Lastname = request.Lastname?.Trim() ?? string.Empty;
         contact.Email = request.Email?.Trim();
         contact.Phone = request.Phone?.Trim();
         contact.JobTitle = request.JobTitle?.Trim();
@@ -301,7 +308,7 @@ public class ContactController(
         contact.MembershipEndDate = request.MembershipEndDate;
         contact.IsFamilyMembership = request.IsFamilyMembership;
         contact.Address = request.Address;
-        contact.Enterprise = request.Enterprise;
+        contact.Enterprise = request.IsEnterprise ? request.Enterprise : null;
     }
 
     private async Task<string?> ApplyMainContactAsync(
