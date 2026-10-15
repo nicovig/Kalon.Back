@@ -284,7 +284,7 @@ public class ContactControllerTests
     }
 
     [Fact]
-    public async Task Update_ReturnsBadRequest_WhenEmailAndPhoneMissing()
+    public async Task Update_ReturnsBadRequest_WhenFirstnameOrLastnameMissing()
     {
         using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
         var userId = Guid.NewGuid();
@@ -302,12 +302,100 @@ public class ContactControllerTests
         var request = new ContactCreateRequest
         {
             Firstname = "After",
-            Lastname = "Updated"
+            Lastname = ""
         };
 
         var result = await controller.Update(contact.Id, request, CancellationToken.None);
 
         Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task Create_ReturnsCreated_WhenEnterpriseHasName()
+    {
+        using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var userId = Guid.NewGuid();
+        var user = CreateUser(userId, "owner@example.com");
+        var organization = CreateOrganization(Guid.NewGuid(), userId, user);
+        dbContext.Users.Add(user);
+        dbContext.Organizations.Add(organization);
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.Create(new ContactCreateRequest
+        {
+            IsEnterprise = true,
+            Firstname = "",
+            Lastname = "",
+            Enterprise = new ContactEnterprise
+            {
+                Name = "Alpha SAS",
+                Siret = "98765432100017"
+            }
+        }, CancellationToken.None);
+
+        var created = Assert.IsType<CreatedAtActionResult>(result);
+        var payload = Assert.IsType<ContactResponse>(created.Value);
+        Assert.True(payload.IsEnterprise);
+        Assert.Equal("Alpha SAS", payload.Enterprise!.Name);
+    }
+
+    [Fact]
+    public async Task Create_ReturnsBadRequest_WhenEnterpriseMissingName()
+    {
+        using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var userId = Guid.NewGuid();
+        var user = CreateUser(userId, "owner@example.com");
+        var organization = CreateOrganization(Guid.NewGuid(), userId, user);
+        dbContext.Users.Add(user);
+        dbContext.Organizations.Add(organization);
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.Create(new ContactCreateRequest
+        {
+            IsEnterprise = true,
+            Enterprise = new ContactEnterprise { Name = "  " }
+        }, CancellationToken.None);
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task CreateBulk_ReturnsCreated_WhenEnterpriseItemsValid()
+    {
+        using var dbContext = CreateDbContext(Guid.NewGuid().ToString());
+        var userId = Guid.NewGuid();
+        var user = CreateUser(userId, "owner@example.com");
+        var organization = CreateOrganization(Guid.NewGuid(), userId, user);
+        dbContext.Users.Add(user);
+        dbContext.Organizations.Add(organization);
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext);
+        SetAuthenticatedUser(controller, userId);
+        var result = await controller.CreateBulk(new ContactBulkCreateRequest
+        {
+            Items =
+            [
+                new ContactCreateRequest
+                {
+                    IsEnterprise = true,
+                    Enterprise = new ContactEnterprise { Name = "Beta SA" }
+                },
+                new ContactCreateRequest
+                {
+                    Firstname = "Marie",
+                    Lastname = "Dupont"
+                }
+            ]
+        }, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var payload = Assert.IsType<ContactBulkCreateResponse>(ok.Value);
+        Assert.Equal(2, payload.CreatedCount);
     }
 
     [Fact]
@@ -522,8 +610,8 @@ public class ContactControllerTests
             [
                 new ContactCreateRequest
                 {
-                    Firstname = "A",
-                    Lastname = "One"
+                    IsEnterprise = true,
+                    Enterprise = new ContactEnterprise { Name = "" }
                 }
             ]
         }, CancellationToken.None);
