@@ -59,6 +59,9 @@ namespace Kalon.Back.Migrations
                     b.Property<string>("JobTitle")
                         .HasColumnType("text");
 
+                    b.Property<string>("LandlinePhone")
+                        .HasColumnType("text");
+
                     b.Property<DateTime?>("LastMembershipDate")
                         .HasColumnType("timestamp with time zone");
 
@@ -72,14 +75,14 @@ namespace Kalon.Back.Migrations
                     b.Property<DateTime?>("MembershipEndDate")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("MobilePhone")
+                        .HasColumnType("text");
+
                     b.Property<string>("Notes")
                         .HasColumnType("text");
 
                     b.Property<Guid>("OrganizationId")
                         .HasColumnType("uuid");
-
-                    b.Property<string>("Phone")
-                        .HasColumnType("text");
 
                     b.Property<string>("PreferredFrequencySendingReceipt")
                         .HasColumnType("text");

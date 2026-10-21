@@ -297,7 +297,8 @@ public class ContactController(
         contact.Firstname = request.Firstname?.Trim() ?? string.Empty;
         contact.Lastname = request.Lastname?.Trim() ?? string.Empty;
         contact.Email = request.Email?.Trim();
-        contact.Phone = request.Phone?.Trim();
+        contact.MobilePhone = request.MobilePhone?.Trim();
+        contact.LandlinePhone = request.LandlinePhone?.Trim();
         contact.JobTitle = request.JobTitle?.Trim();
         contact.BirthDate = request.BirthDate;
         contact.Gender = request.Gender?.Trim();
@@ -390,7 +391,8 @@ public class ContactController(
                 Firstname = c.Firstname,
                 Lastname = c.Lastname,
                 Email = c.Email,
-                Phone = c.Phone,
+                MobilePhone = c.MobilePhone,
+                LandlinePhone = c.LandlinePhone,
                 JobTitle = c.JobTitle,
                 BirthDate = c.BirthDate,
                 Gender = c.Gender,

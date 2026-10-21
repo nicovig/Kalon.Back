@@ -11,7 +11,8 @@ public class ContactResponse
     public string Firstname { get; set; } = string.Empty;
     public string Lastname { get; set; } = string.Empty;
     public string? Email { get; set; }
-    public string? Phone { get; set; }
+    public string? MobilePhone { get; set; }
+    public string? LandlinePhone { get; set; }
     public string? JobTitle { get; set; }
     public DateTime? BirthDate { get; set; }
     public string? Gender { get; set; }
@@ -44,7 +45,8 @@ public class ContactCreateRequest
     public string Firstname { get; set; } = string.Empty;
     public string Lastname { get; set; } = string.Empty;
     public string? Email { get; set; }
-    public string? Phone { get; set; }
+    public string? MobilePhone { get; set; }
+    public string? LandlinePhone { get; set; }
     public string? JobTitle { get; set; }
     public DateTime? BirthDate { get; set; }
     public string? Gender { get; set; }
