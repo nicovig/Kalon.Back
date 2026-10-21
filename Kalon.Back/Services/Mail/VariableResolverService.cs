@@ -29,7 +29,9 @@ public class VariableResolverService : IVariableResolverService
             .Replace("{{nom}}", contact.Lastname ?? "")
             .Replace("{{prenom_nom}}", $"{contact.Firstname} {contact.Lastname}".Trim())
             .Replace("{{email}}", contact.Email ?? "")
-            .Replace("{{telephone}}", contact.Phone ?? "")
+            .Replace("{{telephone}}", contact.MobilePhone ?? contact.LandlinePhone ?? "")
+            .Replace("{{telephone_mobile}}", contact.MobilePhone ?? "")
+            .Replace("{{telephone_fixe}}", contact.LandlinePhone ?? "")
             .Replace("{{metier}}", contact.JobTitle ?? "")
 
             // adresse contact

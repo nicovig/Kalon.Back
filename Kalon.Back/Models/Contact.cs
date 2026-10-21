@@ -21,7 +21,8 @@ public class Contact
     public string Firstname { get; set; }
     public string Lastname { get; set; }
     public string? Email { get; set; }
-    public string? Phone { get; set; }
+    public string? MobilePhone { get; set; }
+    public string? LandlinePhone { get; set; }
     public string? JobTitle { get; set; }
     public DateTime? BirthDate { get; set; }
 

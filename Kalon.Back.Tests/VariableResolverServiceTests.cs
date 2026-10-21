@@ -15,7 +15,8 @@ public class VariableResolverServiceTests
             Firstname = "Marie",
             Lastname = "Dupont",
             Email = "marie.dupont@example.com",
-            Phone = "06 01 02 03 04",
+            MobilePhone = "06 01 02 03 04",
+            LandlinePhone = "02 41 00 00 00",
             TotalDonation = 320m,
             DonationCount = 3,
             LastDonation = DateTime.UtcNow.AddMonths(-14),
@@ -83,13 +84,30 @@ public class VariableResolverServiceTests
     {
         var contact = MakeContact(c =>
         {
-            c.Phone = null;
+            c.MobilePhone = null;
+            c.LandlinePhone = null;
             c.JobTitle = null;
             c.LastDonation = null;
         });
         var template = "Tel: {{telephone}} - Métier: {{metier}} - Dernier don: {{date_dernier_don}}";
         var result = _resolver.Resolve(template, contact, MakeOrg());
         Assert.Equal("Tel:  - Métier:  - Dernier don: jamais", result);
+    }
+
+    [Fact]
+    public void Resolve_PhoneVariables_ReplacesMobileAndLandline()
+    {
+        var template = "{{telephone}} / {{telephone_mobile}} / {{telephone_fixe}}";
+        var result = _resolver.Resolve(template, MakeContact(), MakeOrg());
+        Assert.Equal("06 01 02 03 04 / 06 01 02 03 04 / 02 41 00 00 00", result);
+    }
+
+    [Fact]
+    public void Resolve_Telephone_FallsBackToLandline_WhenMobileMissing()
+    {
+        var contact = MakeContact(c => c.MobilePhone = null);
+        var result = _resolver.Resolve("{{telephone}}", contact, MakeOrg());
+        Assert.Equal("02 41 00 00 00", result);
     }
 
     [Fact]
