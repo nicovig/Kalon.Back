@@ -83,4 +83,20 @@ public class PlanServiceTests
 
         Assert.Equal("Free", result);
     }
+
+    [Fact]
+    public void RechercheMecenesEnabled_ReturnsTrue_WhenPlanIsPremium()
+    {
+        var service = CreateService(new Claim("plan_name", "Premium"));
+
+        Assert.True(service.RechercheMecenesEnabled);
+    }
+
+    [Fact]
+    public void RechercheMecenesEnabled_ReturnsFalse_WhenPlanIsBasic()
+    {
+        var service = CreateService(new Claim("plan_name", "Basic"));
+
+        Assert.False(service.RechercheMecenesEnabled);
+    }
 }

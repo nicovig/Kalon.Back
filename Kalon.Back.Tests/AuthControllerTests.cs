@@ -214,6 +214,10 @@ public class AuthControllerTests
         Assert.Equal("john@doe.com", payload.User.Email);
         Assert.Equal("organization_master", payload.User.Role);
 
+        var organization = await dbContext.Organizations.SingleAsync();
+        Assert.Equal(PlanTypes.Basic, organization.CachedPlan);
+        Assert.NotNull(organization.CachedPlanUpdatedAt);
+
         var jwt = new JwtSecurityTokenHandler().ReadJwtToken(payload.Token);
         Assert.Contains(jwt.Claims, c => c.Type == "organization_id");
         Assert.Contains(jwt.Claims, c => c.Type == ClaimTypes.Role && c.Value == "organization_master");

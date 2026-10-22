@@ -1,5 +1,9 @@
+using Hangfire;
+using Hangfire.PostgreSql;
 using Kalon.Back.Configuration;
 using Kalon.Back.Data;
+using Kalon.Back.Jobs;
+using Kalon.Back.Middleware;
 using Kalon.Back.Services;
 using Kalon.Back.Services.Mail;
 using Kalon.Back.Services.OrganizationAccess;
@@ -11,7 +15,6 @@ using System.Text;
 
 QuestPDF.Settings.License = LicenseType.Community;
 
-// après les autres builder.Services...
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.Configure<PasswordOptions>(builder.Configuration.GetSection("Password"));
@@ -31,11 +34,14 @@ builder.Services.AddScoped<ISendingService, SendingService>();
 builder.Services.AddScoped<IAiMailGeneratorService, AiMailGeneratorService>();
 builder.Services.AddScoped<IQuotaService, QuotaService>();
 builder.Services.AddScoped<IPlanService, PlanService>();
+builder.Services.AddScoped<ISearchCreditService, SearchCreditService>();
+builder.Services.AddScoped<GrantMonthlySearchCreditsJob>();
 
 builder.Services.Configure<AnthropicOptions>(builder.Configuration.GetSection(AnthropicOptions.Section));
 builder.Services.Configure<BrevoOptions>(builder.Configuration.GetSection(BrevoOptions.Section));
 builder.Services.Configure<MeranOptions>(builder.Configuration.GetSection(MeranOptions.Section));
 builder.Services.Configure<PlanOptions>(builder.Configuration.GetSection(PlanOptions.Section));
+builder.Services.Configure<SocieteComOptions>(builder.Configuration.GetSection(SocieteComOptions.Section));
 
 builder.Services.AddScoped<IMailService, MailService>();
 
@@ -45,6 +51,7 @@ builder.Services.AddHttpClient("MeranOAuth", client =>
 });
 builder.Services.AddSingleton<IMeranTokenProvider, MeranTokenProvider>();
 builder.Services.AddHttpClient<MeranClient>();
+builder.Services.AddHttpClient<ISocieteComService, SocieteComService>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
@@ -99,9 +106,10 @@ builder.Services.AddCors(options =>
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string not found.");
+var usePostgres = connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase);
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
-    if (connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase))
+    if (usePostgres)
     {
         options.UseNpgsql(connectionString);
     }
@@ -110,6 +118,14 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
         options.UseSqlServer(connectionString);
     }
 });
+
+if (usePostgres)
+{
+    builder.Services.AddHangfire(config =>
+        config.UsePostgreSqlStorage(options =>
+            options.UseNpgsqlConnection(connectionString)));
+    builder.Services.AddHangfireServer();
+}
 
 builder.Services.AddHttpContextAccessor();
 
@@ -127,6 +143,8 @@ using (var scope = app.Services.CreateScope())
     dbContext.Database.Migrate();
 }
 
+app.UseMiddleware<InsufficientSearchCreditsExceptionMiddleware>();
+
 app.UseHttpsRedirection();
 
 app.UseCors();
@@ -135,5 +153,14 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+if (usePostgres)
+{
+    var recurringJobs = app.Services.GetRequiredService<IRecurringJobManager>();
+    recurringJobs.AddOrUpdate<GrantMonthlySearchCreditsJob>(
+        "grant-monthly-search-credits",
+        job => job.ExecuteAsync(),
+        Cron.Monthly(1));
+}
 
 app.Run();
