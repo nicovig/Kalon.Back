@@ -156,7 +156,8 @@ app.MapControllers();
 
 if (usePostgres)
 {
-    RecurringJob.AddOrUpdate<GrantMonthlySearchCreditsJob>(
+    var recurringJobs = app.Services.GetRequiredService<IRecurringJobManager>();
+    recurringJobs.AddOrUpdate<GrantMonthlySearchCreditsJob>(
         "grant-monthly-search-credits",
         job => job.ExecuteAsync(),
         Cron.Monthly(1));
