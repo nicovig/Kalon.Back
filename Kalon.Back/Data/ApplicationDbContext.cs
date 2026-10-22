@@ -21,6 +21,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<QuotaUsage> QuotaUsages { get; set; }
     public DbSet<PasswordResetToken> PasswordResetTokens { get; set; }
     public DbSet<Tag> Tags { get; set; }
+    public DbSet<SearchCredit> SearchCredits { get; set; }
+    public DbSet<SearchCreditLog> SearchCreditLogs { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -293,6 +295,28 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .IsUnique();
 
             entity.HasIndex(q => q.OrganizationId);
+        });
+
+        modelBuilder.Entity<SearchCredit>(entity =>
+        {
+            entity.ToTable("search_credits");
+
+            entity.HasOne(c => c.Organization)
+                .WithMany()
+                .HasForeignKey(c => c.OrganizationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(c => c.OrganizationId);
+            entity.HasIndex(c => new { c.OrganizationId, c.CreatedAt });
+        });
+
+        modelBuilder.Entity<SearchCreditLog>(entity =>
+        {
+            entity.ToTable("search_credit_logs");
+
+            entity.HasIndex(l => l.OrganizationId);
+            entity.HasIndex(l => l.SearchCreditId);
+            entity.HasIndex(l => new { l.OrganizationId, l.CreatedAt });
         });
     }
 

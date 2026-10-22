@@ -17,7 +17,7 @@ namespace Kalon.Back.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.31")
+                .HasAnnotation("ProductVersion", "8.0.32")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -445,6 +445,13 @@ namespace Kalon.Back.Migrations
                     b.Property<string>("AudienceDescription")
                         .HasColumnType("text");
 
+                    b.Property<string>("CachedPlan")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("CachedPlanUpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("City")
                         .HasColumnType("text");
 
@@ -627,6 +634,76 @@ namespace Kalon.Back.Migrations
                         .IsUnique();
 
                     b.ToTable("quota_usages", (string)null);
+                });
+
+            modelBuilder.Entity("Kalon.Back.Models.SearchCredit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("CreditsGranted")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("CreditsUsed")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateTime?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrganizationId");
+
+                    b.HasIndex("OrganizationId", "CreatedAt");
+
+                    b.ToTable("search_credits", (string)null);
+                });
+
+            modelBuilder.Entity("Kalon.Back.Models.SearchCreditLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("CreditsConsumed")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("OperationType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SearchCreditId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Siren")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrganizationId");
+
+                    b.HasIndex("SearchCreditId");
+
+                    b.HasIndex("OrganizationId", "CreatedAt");
+
+                    b.ToTable("search_credit_logs", (string)null);
                 });
 
             modelBuilder.Entity("Kalon.Back.Models.Tag", b =>
@@ -978,6 +1055,17 @@ namespace Kalon.Back.Migrations
                 });
 
             modelBuilder.Entity("Kalon.Back.Models.QuotaUsage", b =>
+                {
+                    b.HasOne("Kalon.Back.Models.Organization", "Organization")
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Organization");
+                });
+
+            modelBuilder.Entity("Kalon.Back.Models.SearchCredit", b =>
                 {
                     b.HasOne("Kalon.Back.Models.Organization", "Organization")
                         .WithMany()

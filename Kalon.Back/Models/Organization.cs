@@ -71,6 +71,9 @@ public class Organization
 
     public string? ContactLinkingNote { get; set; }
 
+    public string CachedPlan { get; set; } = PlanTypes.Free;
+    public DateTime? CachedPlanUpdatedAt { get; set; }
+
     // navigation collections
     public ICollection<Contact> Contacts { get; set; } = new List<Contact>();
     public ICollection<EmailTemplate> EmailTemplates { get; set; } = new List<EmailTemplate>();
@@ -87,6 +90,39 @@ public enum ReceiptFrequency
     HalfYearly,
     Annually,
     OneTime,
+}
+
+public static class PlanTypes
+{
+    public const string Free = "Free";
+    public const string Basic = "Basic";
+    public const string Premium = "Premium";
+
+    public static readonly IReadOnlyList<string> All =
+    [
+        Free,
+        Basic,
+        Premium
+    ];
+
+    public static bool IsValid(string? value) =>
+        value is not null && All.Contains(value);
+
+    public static string Normalize(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return Free;
+
+        if (string.Equals(value, Free, StringComparison.OrdinalIgnoreCase))
+            return Free;
+        if (string.Equals(value, Basic, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(value, "Pro", StringComparison.OrdinalIgnoreCase))
+            return Basic;
+        if (string.Equals(value, Premium, StringComparison.OrdinalIgnoreCase))
+            return Premium;
+
+        return Free;
+    }
 }
 
 public static class FiscalStatus

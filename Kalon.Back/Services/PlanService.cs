@@ -16,6 +16,7 @@ public interface IPlanService
     decimal SearchQueryCost { get; }
     decimal SearchDetailCost { get; }
     bool IaMailEnabled { get; }
+    bool RechercheMecenesEnabled { get; }
 }
 
 public class PlanService : IPlanService
@@ -64,6 +65,9 @@ public class PlanService : IPlanService
 
     public bool IaMailEnabled =>
         ParseBool(_planOptions.IaMailApplicationFeatureValue);
+
+    public bool RechercheMecenesEnabled =>
+        string.Equals(PlanName, Models.PlanTypes.Premium, StringComparison.OrdinalIgnoreCase);
 
 
     // ── Helpers privés ────────────────────────────────────────────

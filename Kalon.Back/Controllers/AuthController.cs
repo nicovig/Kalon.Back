@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Kalon.Back.Data;
 using Kalon.Back.DTOs;
+using Kalon.Back.Models;
 using Kalon.Back.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -129,6 +130,14 @@ public class AuthController: ControllerBase
             };
 
             response.Token = _jwtTokenService.CreateToken(user, user.Organization.Id, meranStatus);
+
+            var organization = await _dbContext.Organizations.FindAsync(user.Organization.Id);
+            if (organization is not null)
+            {
+                organization.CachedPlan = PlanTypes.Normalize(meranStatus.Plan);
+                organization.CachedPlanUpdatedAt = DateTime.UtcNow;
+                await _dbContext.SaveChangesAsync(cancellationToken);
+            }
 
             return Ok(response);
         }
