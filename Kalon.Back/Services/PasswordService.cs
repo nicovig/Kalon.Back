@@ -14,6 +14,7 @@ namespace Kalon.Back.Services
     public interface IPasswordService
     {
         string GenerateSalt();
+        string GeneratePassword(int length = 12);
         string HashPassword(string password, string salt);
         bool VerifyPassword(string password, string passwordHash, string salt);
     }
@@ -30,6 +31,36 @@ namespace Kalon.Back.Services
         public string GenerateSalt()
         {
             return Convert.ToBase64String(RandomNumberGenerator.GetBytes(16));
+        }
+
+        public string GeneratePassword(int length = 12)
+        {
+            if (length < 4)
+                throw new ArgumentOutOfRangeException(nameof(length), "Password length must be at least 4.");
+
+            const string lower = "abcdefghjkmnpqrstuvwxyz";
+            const string upper = "ABCDEFGHJKMNPQRSTUVWXYZ";
+            const string digits = "23456789";
+            const string special = "!@#*-_";
+            var all = lower + upper + digits + special;
+
+            var bytes = new byte[length];
+            RandomNumberGenerator.Fill(bytes);
+
+            var chars = new char[length];
+            chars[0] = upper[bytes[0] % upper.Length];
+            chars[1] = digits[bytes[1] % digits.Length];
+            chars[2] = special[bytes[2] % special.Length];
+            for (var i = 3; i < length; i++)
+                chars[i] = all[bytes[i] % all.Length];
+
+            for (var i = length - 1; i > 0; i--)
+            {
+                var j = bytes[i] % (i + 1);
+                (chars[i], chars[j]) = (chars[j], chars[i]);
+            }
+
+            return new string(chars);
         }
 
         public string HashPassword(string password, string salt)

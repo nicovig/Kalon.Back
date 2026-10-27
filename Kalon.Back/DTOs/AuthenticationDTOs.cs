@@ -76,3 +76,8 @@ public class MeranMembershipStatus
     public string? Plan { get; set; }
     public Dictionary<string, string> Features { get; set; } = new();
 }
+
+public class MeranCreateUserResponse
+{
+    public Guid Id { get; set; }
+}

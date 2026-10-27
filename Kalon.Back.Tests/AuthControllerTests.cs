@@ -32,6 +32,8 @@ public class AuthControllerTests
 
         public string GenerateSalt() => "fake-salt";
 
+        public string GeneratePassword(int length = 12) => "TempPass1!ab";
+
         public string HashPassword(string password, string salt) => "hash";
 
         public bool VerifyPassword(string password, string passwordHash, string salt) => _verifyResult;

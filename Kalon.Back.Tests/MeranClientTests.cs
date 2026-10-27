@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using Kalon.Back.Configuration;
+using Kalon.Back.DTOs;
 using Kalon.Back.Services;
 using Microsoft.Extensions.Options;
 
@@ -72,6 +73,35 @@ public class MeranClientTests
 
         Assert.True(result.IsActive);
         Assert.Equal("basic", result.Plan);
+    }
+
+    [Fact]
+    public async Task CreateUserAsync_PostsPayloadAndReturnsId()
+    {
+        var createdId = Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+        var handler = new CapturingHandler($"{{\"id\":\"{createdId}\"}}");
+        var httpClient = new HttpClient(handler);
+        var client = new MeranClient(
+            httpClient,
+            Options.Create(new MeranOptions { BaseUrl = "http://example.com" }),
+            new FakeMeranTokenProvider("token123"));
+
+        var applicationId = Guid.Parse("356c9115-ca1e-4fd7-aa89-d6b07ade1530");
+        var result = await client.CreateUserAsync(applicationId, new MeranCreateUserRequest
+        {
+            Name = "Dupont Marie",
+            Email = "marie@asso.fr",
+            Plan = "Free"
+        });
+
+        Assert.Equal(createdId, result);
+        Assert.NotNull(handler.LastRequest);
+        Assert.Equal(HttpMethod.Post, handler.LastRequest!.Method);
+        Assert.Equal(
+            $"http://example.com/api/applications/{applicationId}/users",
+            handler.LastRequest.RequestUri!.ToString());
+        Assert.Equal("Bearer", handler.LastRequest.Headers.Authorization!.Scheme);
+        Assert.Equal("token123", handler.LastRequest.Headers.Authorization!.Parameter);
     }
 
     [Fact]
