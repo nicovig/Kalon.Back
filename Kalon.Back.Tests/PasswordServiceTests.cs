@@ -66,6 +66,26 @@ public class PasswordServiceTests
     }
 
     [Fact]
+    public void GeneratePassword_ReturnsHashablePassword()
+    {
+        var service = CreateService("viser_lindependance_financiere_002");
+        var password = service.GeneratePassword();
+        var salt = service.GenerateSalt();
+        var hash = service.HashPassword(password, salt);
+
+        Assert.Equal(12, password.Length);
+        Assert.True(service.VerifyPassword(password, hash, salt));
+    }
+
+    [Fact]
+    public void GeneratePassword_Throws_WhenLengthTooShort()
+    {
+        var service = CreateService("viser_lindependance_financiere_002");
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => service.GeneratePassword(3));
+    }
+
+    [Fact]
     public void VerifyPassword_Bcrypt_DetectsHashFormat()
     {
         var service = CreateService("irrelevant_pepper");

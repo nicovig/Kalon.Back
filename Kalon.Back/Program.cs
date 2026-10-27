@@ -36,7 +36,10 @@ builder.Services.AddScoped<IQuotaService, QuotaService>();
 builder.Services.AddScoped<IPlanService, PlanService>();
 builder.Services.AddScoped<ISearchCreditService, SearchCreditService>();
 builder.Services.AddScoped<GrantMonthlySearchCreditsJob>();
+builder.Services.AddScoped<IAdminOnboardingService, AdminOnboardingService>();
+builder.Services.AddScoped<IOnboardingMailService, OnboardingMailService>();
 
+builder.Services.Configure<AdminOptions>(builder.Configuration.GetSection(AdminOptions.Section));
 builder.Services.Configure<AnthropicOptions>(builder.Configuration.GetSection(AnthropicOptions.Section));
 builder.Services.Configure<BrevoOptions>(builder.Configuration.GetSection(BrevoOptions.Section));
 builder.Services.Configure<MeranOptions>(builder.Configuration.GetSection(MeranOptions.Section));

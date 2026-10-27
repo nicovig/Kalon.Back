@@ -6,8 +6,9 @@ public class MeranOptions
 
     public string BaseUrl { get; set; } = string.Empty;
 
-    public string? TokenEndpoint { get; set; }
+    public Guid ApplicationId { get; set; }
 
+    public string? TokenEndpoint { get; set; }
 
     public string? ClientSecret { get; set; }
 
